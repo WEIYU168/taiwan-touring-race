@@ -107,7 +107,7 @@ function setupUI(canvas, qk) {
   seg('sLiv', v => { GAME.livery = +v; if (GAME.player) GAME.player.liv = LIVERIES[+v]; });
   const rp = $('rpm'); for (let i = 0; i < 18; i++) rp.appendChild(document.createElement('i'));
   $('go').onclick = goPressed; $('bAgain').onclick = () => { if (GAME.online) showMenu(); else beginRace(); };
-  $('mpJoin').onclick = netConnect; try { $('mpName').value = localStorage.getItem('r139_name') || ''; } catch (e) { } $('bMenu1').onclick = showMenu; $('bMenu2').onclick = showMenu; $('bResume').onclick = togglePause;
+  $('mpJoin').onclick = () => netConnect(); try { $('mpName').value = localStorage.getItem('r139_name') || ''; } catch (e) { } $('bMenu1').onclick = showMenu; $('bMenu2').onclick = showMenu; $('bResume').onclick = togglePause;
   $('bCam').onclick = cycleCam; $('bReset').onclick = resetCar; $('bPause').onclick = togglePause;
   window.addEventListener('keydown', e => { if (e.target && e.target.tagName === 'INPUT') return; if (e.repeat) { if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault(); return; } INP.keys[e.code] = true;
     if (e.code === 'KeyC') cycleCam(); else if (e.code === 'KeyR') resetCar(); else if (e.code === 'KeyP' || e.code === 'Escape') togglePause(); else if (e.code === 'KeyM') { GAME.muted = !GAME.muted; toast(GAME.muted ? '靜音' : '聲音開啟'); } else if (e.code === 'KeyH') { GAME.hud = !GAME.hud; }

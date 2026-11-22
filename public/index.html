@@ -177,7 +177,7 @@ body.hud-on #h-top{display:flex}
   <p class="lede" id="rDesc"></p>
   <div class="grp"><span>模式</span><div class="seg" id="sMode">
     <button data-v="race" aria-pressed="true">房車賽<small>8 車同場競速</small></button><button data-v="time" aria-pressed="false">單車計時<small>挑戰個人最佳</small></button><button data-v="cruise" aria-pressed="false">環景巡航<small>自動駕駛・360° 環視</small></button><button data-v="online" aria-pressed="false">線上對戰<small>最多 8 人同場</small></button></div></div>
-  <div class="grp" id="mp"><span>線上對戰房間</span><div class="mprow"><input id="mpName" maxlength="8" placeholder="暱稱" autocomplete="off"><input id="mpRoom" maxlength="6" placeholder="房號（留空＝開新房間）" autocomplete="off"><button id="mpJoin">連線</button></div><p class="note" id="mpStat">輸入暱稱後按「連線」。房主選好路線與時段再按出發。</p><ol id="mpList"></ol></div>
+  <div class="grp" id="mp"><span>線上對戰房間</span><div class="mprow"><input id="mpName" maxlength="8" placeholder="暱稱" autocomplete="off"><input id="mpRoom" maxlength="6" placeholder="房號（留空＝自動配對）" autocomplete="off"><button id="mpJoin">連線</button></div><p class="note" id="mpStat">輸入暱稱後按「連線」：房號留空會自動配對，每 8 人一組。房主選好路線與時段再按出發。</p><ol id="mpList"></ol></div>
   <div class="grp"><span>時段</span><div class="seg" id="sTod">
     <button data-v="dawn" aria-pressed="false">晨曦<small>中央山脈日出</small></button><button data-v="day" aria-pressed="true">晴日<small>稜線晴空</small></button><button data-v="dusk" aria-pressed="false">夕照<small>平原落日</small></button></div></div>
   <div class="grp"><span>對手強度</span><div class="seg" id="sDiff"><button data-v="0" aria-pressed="false">輕鬆</button><button data-v="1" aria-pressed="true">標準</button><button data-v="2" aria-pressed="false">職業</button></div></div>
@@ -4734,7 +4734,8 @@ function applyRoute(key) {
 }
 
 // ==== 15_net.js ====
-// ───────────────────────── 線上對戰（需搭配 server.js） ─────────────────────────
+// ───────────────────────── 線上對戰（Cloudflare Worker 或本機 server.js） ─────────────────────────
+// 連線：GET /api/match 取得自動配對房號 → WebSocket /ws?room=XXXX（Cloudflare 版，見 worker/index.js）
 // 協定（JSON over WebSocket）：
 //   → join{room,name,liv}  start{route,tod}  ready  s{s,d,v,r,st,b}  fin{time}
 //   ← room{room,you,host,players[],phase}  load{route,tod}  go  s{id,…}  fin{id,time}  err{msg}
@@ -4746,7 +4747,7 @@ function netRender() {
   const me = NET.players.find(p => p.id === NET.id);
   $('mpList').innerHTML = NET.players.map(p => '<li>' + (p.id === NET.host ? '<b>房主</b>' : '<b>車手</b>') + '<span></span></li>').join('');
   [...$('mpList').children].forEach((li, i) => { li.lastChild.textContent = NET.players[i].name + (NET.players[i].id === NET.id ? '（你）' : ''); });
-  if (NET.room) netStatus('房號 ' + NET.room + '　把這個房號告訴朋友，他們輸入後按「連線」即可加入。' + (me && NET.id !== NET.host ? '等待房主出發。' : ''));
+  if (NET.room) netStatus('房號 ' + NET.room + '　目前 ' + NET.players.length + '／8 人。' + (NET.quick ? '自動配對湊滿 8 人會自動出發；' : '') + '想和朋友同組，請把房號告訴他們，輸入後按「連線」。' + (me && NET.id !== NET.host ? '等待房主出發。' : ''));
   updateGoLabel();
 }
 function updateGoLabel() {
@@ -4755,19 +4756,31 @@ function updateGoLabel() {
   else if (NET.id === NET.host) { g.textContent = '出　發（' + NET.players.length + ' 人）'; g.disabled = false; }
   else { g.textContent = '等待房主出發'; g.disabled = true; }
 }
-function netConnect() {
+// 房號留空＝自動配對（每 8 人一組，伺服器自動分房）；輸入房號＝和朋友進同一個房間。
+// 本機 node server.js 沒有 /api/match，會退回「房號留空＝開新房」的舊行為。
+async function netConnect(retry = 0) {
   AUDIO.init();
-  if (!/^https?:$/.test(location.protocol)) { netStatus('線上對戰需要透過遊戲包裡的伺服器開啟：執行 node server.js，再用瀏覽器開它顯示的網址。'); return; }
-  if (NET.ws) { try { NET.ws.close(); } catch (e) { } }
-  const name = ($('mpName').value || '車手').slice(0, 8), room = $('mpRoom').value.trim().toUpperCase().slice(0, 6);
+  if (!/^https?:$/.test(location.protocol)) { netStatus('線上對戰需要透過伺服器開啟：用 Cloudflare 的遊戲網址，或在本機執行 node server.js 再開它顯示的網址。'); return; }
+  if (NET.ws) { const old = NET.ws; NET.ws = null; try { old.close(); } catch (e) { } }
+  const name = ($('mpName').value || '車手').slice(0, 8); let room = $('mpRoom').value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6), quick = false;
   try { localStorage.setItem('r139_name', name); } catch (e) { }
-  netStatus('連線中…');
-  let ws; try { ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws'); } catch (e) { netStatus('這個頁面無法連到對戰伺服器，請改用遊戲包裡的 server.js 開啟。'); return; }
-  NET.ws = ws;
+  netStatus(room ? '連線中…' : '自動配對中…');
+  if (!room) {
+    try { const r = await fetch('/api/match', { cache: 'no-store' }); if (r.ok) { room = (await r.json()).room; quick = true; } } catch (e) { }
+    if (!room) room = Array.from({ length: 4 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.random() * 32 | 0]).join('');
+  }
+  let ws; try { ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws?room=' + room + (quick ? '&q=1' : '')); } catch (e) { netStatus('這個頁面無法連到對戰伺服器。'); return; }
+  NET.ws = ws; NET.quick = quick; let full = false;
   ws.onopen = () => netSend({ t: 'join', room, name, liv: GAME.livery, car: GAME.carModel || 0 });
-  ws.onclose = () => { if (NET.ws !== ws) return; const was = NET.room; NET.room = null; NET.players = []; netRender(); netStatus(was ? '連線中斷，請重新連線。' : '找不到對戰伺服器。請用遊戲包裡的 server.js 開啟遊戲（node server.js）。'); if (GAME.online && GAME.state !== 'menu') showMenu(); };
+  ws.onclose = () => {
+    if (NET.ws !== ws) return;
+    if (full && quick && retry < 3) { netConnect(retry + 1); return; } // 剛好被搶滿或已開賽：重新配對
+    const was = NET.room; NET.room = null; NET.players = []; netRender();
+    if (!full) netStatus(was ? '連線中斷，請重新連線。' : '找不到對戰伺服器。請用 Cloudflare 的遊戲網址開啟，或在本機執行 node server.js。');
+    if (GAME.online && GAME.state !== 'menu') showMenu();
+  };
   ws.onerror = () => { };
-  ws.onmessage = ev => { let m; try { m = JSON.parse(ev.data); } catch (e) { return; } netHandle(m); };
+  ws.onmessage = ev => { let m; try { m = JSON.parse(ev.data); } catch (e) { return; } if (m.t === 'err' && m.full) full = true; netHandle(m); };
 }
 function netHandle(m) {
   if (m.t === 'room') {
@@ -4787,6 +4800,8 @@ function netHandle(m) {
     if (c.fresh) { c.s = m.s; c.d = m.d; c.v = m.v; c.fresh = false; }
   } else if (m.t === 'fin') {
     NET.fins[m.id] = m.time; const c = GAME.cars.find(c => c.netId === m.id); if (c && m.time >= 0) { c.finished = true; c.ftime = m.time; } netResults();
+  } else if (m.t === 'auto') {
+    if (m.sec > 0) netStatus('已湊滿 8 人，' + m.sec + ' 秒後自動出發（房主也可以提前按出發）。'); else netRender();
   } else if (m.t === 'err') netStatus(m.msg);
 }
 function netResults() {
@@ -5350,7 +5365,7 @@ function setupUI(canvas, qk) {
   seg('sLiv', v => { GAME.livery = +v; if (GAME.player) GAME.player.liv = LIVERIES[+v]; });
   const rp = $('rpm'); for (let i = 0; i < 18; i++) rp.appendChild(document.createElement('i'));
   $('go').onclick = goPressed; $('bAgain').onclick = () => { if (GAME.online) showMenu(); else beginRace(); };
-  $('mpJoin').onclick = netConnect; try { $('mpName').value = localStorage.getItem('r139_name') || ''; } catch (e) { } $('bMenu1').onclick = showMenu; $('bMenu2').onclick = showMenu; $('bResume').onclick = togglePause;
+  $('mpJoin').onclick = () => netConnect(); try { $('mpName').value = localStorage.getItem('r139_name') || ''; } catch (e) { } $('bMenu1').onclick = showMenu; $('bMenu2').onclick = showMenu; $('bResume').onclick = togglePause;
   $('bCam').onclick = cycleCam; $('bReset').onclick = resetCar; $('bPause').onclick = togglePause;
   window.addEventListener('keydown', e => { if (e.target && e.target.tagName === 'INPUT') return; if (e.repeat) { if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault(); return; } INP.keys[e.code] = true;
     if (e.code === 'KeyC') cycleCam(); else if (e.code === 'KeyR') resetCar(); else if (e.code === 'KeyP' || e.code === 'Escape') togglePause(); else if (e.code === 'KeyM') { GAME.muted = !GAME.muted; toast(GAME.muted ? '靜音' : '聲音開啟'); } else if (e.code === 'KeyH') { GAME.hud = !GAME.hud; }

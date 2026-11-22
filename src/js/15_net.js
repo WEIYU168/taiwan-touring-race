@@ -1,4 +1,5 @@
-// ───────────────────────── 線上對戰（需搭配 server.js） ─────────────────────────
+// ───────────────────────── 線上對戰（Cloudflare Worker 或本機 server.js） ─────────────────────────
+// 連線：GET /api/match 取得自動配對房號 → WebSocket /ws?room=XXXX（Cloudflare 版，見 worker/index.js）
 // 協定（JSON over WebSocket）：
 //   → join{room,name,liv}  start{route,tod}  ready  s{s,d,v,r,st,b}  fin{time}
 //   ← room{room,you,host,players[],phase}  load{route,tod}  go  s{id,…}  fin{id,time}  err{msg}
@@ -10,7 +11,7 @@ function netRender() {
   const me = NET.players.find(p => p.id === NET.id);
   $('mpList').innerHTML = NET.players.map(p => '<li>' + (p.id === NET.host ? '<b>房主</b>' : '<b>車手</b>') + '<span></span></li>').join('');
   [...$('mpList').children].forEach((li, i) => { li.lastChild.textContent = NET.players[i].name + (NET.players[i].id === NET.id ? '（你）' : ''); });
-  if (NET.room) netStatus('房號 ' + NET.room + '　把這個房號告訴朋友，他們輸入後按「連線」即可加入。' + (me && NET.id !== NET.host ? '等待房主出發。' : ''));
+  if (NET.room) netStatus('房號 ' + NET.room + '　目前 ' + NET.players.length + '／8 人。' + (NET.quick ? '自動配對湊滿 8 人會自動出發；' : '') + '想和朋友同組，請把房號告訴他們，輸入後按「連線」。' + (me && NET.id !== NET.host ? '等待房主出發。' : ''));
   updateGoLabel();
 }
 function updateGoLabel() {
@@ -19,19 +20,31 @@ function updateGoLabel() {
   else if (NET.id === NET.host) { g.textContent = '出　發（' + NET.players.length + ' 人）'; g.disabled = false; }
   else { g.textContent = '等待房主出發'; g.disabled = true; }
 }
-function netConnect() {
+// 房號留空＝自動配對（每 8 人一組，伺服器自動分房）；輸入房號＝和朋友進同一個房間。
+// 本機 node server.js 沒有 /api/match，會退回「房號留空＝開新房」的舊行為。
+async function netConnect(retry = 0) {
   AUDIO.init();
-  if (!/^https?:$/.test(location.protocol)) { netStatus('線上對戰需要透過遊戲包裡的伺服器開啟：執行 node server.js，再用瀏覽器開它顯示的網址。'); return; }
-  if (NET.ws) { try { NET.ws.close(); } catch (e) { } }
-  const name = ($('mpName').value || '車手').slice(0, 8), room = $('mpRoom').value.trim().toUpperCase().slice(0, 6);
+  if (!/^https?:$/.test(location.protocol)) { netStatus('線上對戰需要透過伺服器開啟：用 Cloudflare 的遊戲網址，或在本機執行 node server.js 再開它顯示的網址。'); return; }
+  if (NET.ws) { const old = NET.ws; NET.ws = null; try { old.close(); } catch (e) { } }
+  const name = ($('mpName').value || '車手').slice(0, 8); let room = $('mpRoom').value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6), quick = false;
   try { localStorage.setItem('r139_name', name); } catch (e) { }
-  netStatus('連線中…');
-  let ws; try { ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws'); } catch (e) { netStatus('這個頁面無法連到對戰伺服器，請改用遊戲包裡的 server.js 開啟。'); return; }
-  NET.ws = ws;
+  netStatus(room ? '連線中…' : '自動配對中…');
+  if (!room) {
+    try { const r = await fetch('/api/match', { cache: 'no-store' }); if (r.ok) { room = (await r.json()).room; quick = true; } } catch (e) { }
+    if (!room) room = Array.from({ length: 4 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.random() * 32 | 0]).join('');
+  }
+  let ws; try { ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws?room=' + room + (quick ? '&q=1' : '')); } catch (e) { netStatus('這個頁面無法連到對戰伺服器。'); return; }
+  NET.ws = ws; NET.quick = quick; let full = false;
   ws.onopen = () => netSend({ t: 'join', room, name, liv: GAME.livery, car: GAME.carModel || 0 });
-  ws.onclose = () => { if (NET.ws !== ws) return; const was = NET.room; NET.room = null; NET.players = []; netRender(); netStatus(was ? '連線中斷，請重新連線。' : '找不到對戰伺服器。請用遊戲包裡的 server.js 開啟遊戲（node server.js）。'); if (GAME.online && GAME.state !== 'menu') showMenu(); };
+  ws.onclose = () => {
+    if (NET.ws !== ws) return;
+    if (full && quick && retry < 3) { netConnect(retry + 1); return; } // 剛好被搶滿或已開賽：重新配對
+    const was = NET.room; NET.room = null; NET.players = []; netRender();
+    if (!full) netStatus(was ? '連線中斷，請重新連線。' : '找不到對戰伺服器。請用 Cloudflare 的遊戲網址開啟，或在本機執行 node server.js。');
+    if (GAME.online && GAME.state !== 'menu') showMenu();
+  };
   ws.onerror = () => { };
-  ws.onmessage = ev => { let m; try { m = JSON.parse(ev.data); } catch (e) { return; } netHandle(m); };
+  ws.onmessage = ev => { let m; try { m = JSON.parse(ev.data); } catch (e) { return; } if (m.t === 'err' && m.full) full = true; netHandle(m); };
 }
 function netHandle(m) {
   if (m.t === 'room') {
@@ -51,6 +64,8 @@ function netHandle(m) {
     if (c.fresh) { c.s = m.s; c.d = m.d; c.v = m.v; c.fresh = false; }
   } else if (m.t === 'fin') {
     NET.fins[m.id] = m.time; const c = GAME.cars.find(c => c.netId === m.id); if (c && m.time >= 0) { c.finished = true; c.ftime = m.time; } netResults();
+  } else if (m.t === 'auto') {
+    if (m.sec > 0) netStatus('已湊滿 8 人，' + m.sec + ' 秒後自動出發（房主也可以提前按出發）。'); else netRender();
   } else if (m.t === 'err') netStatus(m.msg);
 }
 function netResults() {
