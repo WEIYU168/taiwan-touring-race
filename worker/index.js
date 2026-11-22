@@ -42,11 +42,13 @@ export class Lobby {
   constructor(state, env) {
     // code → { count, phase, quick, pend: [預約時間戳…], ts }；記錄所有房間（含已開賽的），才算得出總人數
     this.rooms = new Map();
+    this.lastSeq = new Map(); // 房號 → 最後處理的回報序號（防亂序）
   }
   size(e, now) { e.pend = e.pend.filter(t => now - t < PENDING_MS); return e.count + e.pend.length; }
   total(now) { // 目前線上總人數（含已預約、正要連進來的人）；順便清掉很久沒回報的殭屍房間
     let n = 0;
     for (const [c, e] of this.rooms) { if (now - e.ts > STALE_MS && !e.pend.length) { this.rooms.delete(c); continue; } n += this.size(e, now); }
+    for (const [c, s] of this.lastSeq) if (!this.rooms.has(c) && now - s > 5 * 60 * 1000) this.lastSeq.delete(c); // 序號以毫秒時間為底，超過 5 分鐘的已關房紀錄可清掉
     return n;
   }
   newCode() { let c; do { c = Array.from({ length: 4 }, () => CODE_CHARS[Math.random() * 32 | 0]).join(''); } while (this.rooms.has(c)); return c; }
@@ -66,10 +68,13 @@ export class Lobby {
     if (path === '/admit') return json({ ok: this.total(now) < MAX_PLAYERS }); // 手動輸入房號加入的人
     if (path === '/report' && request.method === 'POST') {
       const m = await request.json().catch(() => null); if (!m || !m.code) return json({ ok: false }, { status: 400 });
+      // 回報可能亂序到達：每則帶遞增序號（時間為底，重啟後仍遞增），比最後處理的舊就忽略
+      if (m.seq <= (this.lastSeq.get(m.code) || 0)) return json({ ok: true, stale: true });
+      this.lastSeq.set(m.code, m.seq);
       let e = this.rooms.get(m.code);
       if (!e && m.count > 0) { e = { count: 0, phase: 'lobby', quick: !!m.quick, pend: [], ts: now }; this.rooms.set(m.code, e); }
       if (e) {
-        if (m.count > e.count) e.pend.shift();           // 有人真的進房了，消耗一個預約名額
+        const delta = (m.count | 0) - e.count; if (delta > 0) e.pend.splice(0, delta); // 有人真的進房了，消耗對應數量的預約名額
         e.count = m.count | 0; e.phase = m.phase; e.ts = now;
         if (e.count === 0 && !e.pend.length) this.rooms.delete(m.code); // 空了就移除；已開賽的房間留著算人數、但不再配對
       }
@@ -111,7 +116,8 @@ export class Room {
   }
   report() { // 通知大廳目前人數與階段（所有房間都回報，大廳才算得出總人數上限）
     if (!this.env.LOBBY) return;
-    try { lobbyOf(this.env).fetch('https://lobby/report', { method: 'POST', body: JSON.stringify({ code: this.code, count: this.players.length, phase: this.phase, quick: this.quick }) }).catch(() => { }); } catch (e) { }
+    this.seq = Math.max((this.seq || 0) + 1, Date.now()); // 嚴格遞增，且以時間為底，Room 重啟後也不會倒退
+    try { lobbyOf(this.env).fetch('https://lobby/report', { method: 'POST', body: JSON.stringify({ code: this.code, count: this.players.length, phase: this.phase, quick: this.quick, seq: this.seq }) }).catch(() => { }); } catch (e) { }
   }
   begin(route, tod) {
     clearTimeout(this.auto); this.auto = null;
