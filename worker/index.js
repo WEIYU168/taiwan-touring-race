@@ -8,7 +8,8 @@
 
 const ROUTES = ['r139', 'kenting', 'dapeng'], TODS = ['dawn', 'day', 'dusk'];
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const ROOM_MAX = 8, AUTO_START_MS = 8000, PENDING_MS = 20000;
+const ROOM_MAX = 8, MAX_PLAYERS = 100, AUTO_START_MS = 8000, PENDING_MS = 20000, STALE_MS = 40 * 60 * 1000;
+const CAP_MSG = '目前線上已有 100 人在玩（人數上限 100 人），請稍後再試。';
 const json = (o, init) => new Response(JSON.stringify(o), { ...init, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } });
 const lobbyOf = env => env.LOBBY.get(env.LOBBY.idFromName('lobby'));
 
@@ -19,6 +20,15 @@ export default {
       if (request.headers.get('Upgrade') !== 'websocket') return new Response('需要 WebSocket 連線', { status: 426 });
       const code = (url.searchParams.get('room') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
       if (!code) return new Response('缺少房號', { status: 400 });
+      // 自動配對的人在 /api/match 已經檢查過人數上限；手動輸入房號加入的人在這裡檢查
+      if (url.searchParams.get('q') !== '1') {
+        const ok = await lobbyOf(env).fetch('https://lobby/admit').then(r => r.json()).catch(() => ({ ok: true }));
+        if (!ok.ok) { // 回一個馬上關閉、附帶說明的 WebSocket，前端才讀得到原因
+          const pair = new WebSocketPair(); const [client, server] = Object.values(pair);
+          server.accept(); server.send(JSON.stringify({ t: 'err', msg: CAP_MSG, cap: 1 })); server.close(1000, 'cap');
+          return new Response(null, { status: 101, webSocket: client });
+        }
+      }
       return env.ROOM.get(env.ROOM.idFromName(code)).fetch(request);
     }
     if (url.pathname === '/api/match') return lobbyOf(env).fetch('https://lobby/match');
@@ -30,34 +40,44 @@ export default {
 // ───────────────────────── 大廳：自動配對（8 人一組） ─────────────────────────
 export class Lobby {
   constructor(state, env) {
-    this.open = new Map(); // code → { count, phase, pend: [時間戳…] }（只記「自動配對」的房間）
+    // code → { count, phase, quick, pend: [預約時間戳…], ts }；記錄所有房間（含已開賽的），才算得出總人數
+    this.rooms = new Map();
   }
   size(e, now) { e.pend = e.pend.filter(t => now - t < PENDING_MS); return e.count + e.pend.length; }
-  newCode() { let c; do { c = Array.from({ length: 4 }, () => CODE_CHARS[Math.random() * 32 | 0]).join(''); } while (this.open.has(c)); return c; }
+  total(now) { // 目前線上總人數（含已預約、正要連進來的人）；順便清掉很久沒回報的殭屍房間
+    let n = 0;
+    for (const [c, e] of this.rooms) { if (now - e.ts > STALE_MS && !e.pend.length) { this.rooms.delete(c); continue; } n += this.size(e, now); }
+    return n;
+  }
+  newCode() { let c; do { c = Array.from({ length: 4 }, () => CODE_CHARS[Math.random() * 32 | 0]).join(''); } while (this.rooms.has(c)); return c; }
 
   async fetch(request) {
     const path = new URL(request.url).pathname, now = Date.now();
     if (path === '/match') {
-      // 先塞進「最滿但還沒滿」的房間，湊滿 8 人；沒有就開新房
+      // 人數上限 100：滿了就不再配對，請玩家稍後再試
+      if (this.total(now) >= MAX_PLAYERS) return json({ full: true, msg: CAP_MSG });
+      // 先塞進「最滿但還沒滿」的房間，湊滿 8 人；沒有就開新房。人不用湊滿 100，最後一房不足 8 人由電腦補位
       let best = null, bestN = -1;
-      for (const [c, e] of this.open) { const n = this.size(e, now); if (e.phase === 'lobby' && n < ROOM_MAX && n > bestN) { best = c; bestN = n; } }
-      if (best === null) { best = this.newCode(); this.open.set(best, { count: 0, phase: 'lobby', pend: [] }); }
-      this.open.get(best).pend.push(now);
+      for (const [c, e] of this.rooms) { const n = this.size(e, now); if (e.quick && e.phase === 'lobby' && n < ROOM_MAX && n > bestN) { best = c; bestN = n; } }
+      if (best === null) { best = this.newCode(); this.rooms.set(best, { count: 0, phase: 'lobby', quick: true, pend: [], ts: now }); }
+      this.rooms.get(best).pend.push(now);
       return json({ room: best });
     }
+    if (path === '/admit') return json({ ok: this.total(now) < MAX_PLAYERS }); // 手動輸入房號加入的人
     if (path === '/report' && request.method === 'POST') {
       const m = await request.json().catch(() => null); if (!m || !m.code) return json({ ok: false }, { status: 400 });
-      const e = this.open.get(m.code);
+      let e = this.rooms.get(m.code);
+      if (!e && m.count > 0) { e = { count: 0, phase: 'lobby', quick: !!m.quick, pend: [], ts: now }; this.rooms.set(m.code, e); }
       if (e) {
         if (m.count > e.count) e.pend.shift();           // 有人真的進房了，消耗一個預約名額
-        e.count = m.count | 0; e.phase = m.phase;
-        if (e.count === 0 || e.phase !== 'lobby') this.open.delete(m.code); // 空了或已開賽就不再配對進去
+        e.count = m.count | 0; e.phase = m.phase; e.ts = now;
+        if (e.count === 0 && !e.pend.length) this.rooms.delete(m.code); // 空了就移除；已開賽的房間留著算人數、但不再配對
       }
       return json({ ok: true });
     }
     if (path === '/stats') {
-      let waiting = 0; for (const e of this.open.values()) waiting += e.count;
-      return json({ openRooms: this.open.size, waitingPlayers: waiting });
+      let rooms = 0, racing = 0; for (const e of this.rooms.values()) { rooms++; if (e.phase !== 'lobby') racing++; }
+      return json({ players: this.total(now), max: MAX_PLAYERS, rooms, racing });
     }
     return new Response('not found', { status: 404 });
   }
@@ -89,9 +109,9 @@ export class Room {
     const list = this.players.map(q => ({ id: q.id, name: q.name, slot: q.slot, liv: q.liv, car: q.car | 0 }));
     for (const p of this.players) this.send(p.ws, { t: 'room', room: this.code, you: p.id, host: this.host, phase: this.phase, players: list });
   }
-  report() { // 通知大廳目前人數與階段（只有自動配對房間需要）
-    if (!this.quick || !this.env.LOBBY) return;
-    try { lobbyOf(this.env).fetch('https://lobby/report', { method: 'POST', body: JSON.stringify({ code: this.code, count: this.players.length, phase: this.phase }) }).catch(() => { }); } catch (e) { }
+  report() { // 通知大廳目前人數與階段（所有房間都回報，大廳才算得出總人數上限）
+    if (!this.env.LOBBY) return;
+    try { lobbyOf(this.env).fetch('https://lobby/report', { method: 'POST', body: JSON.stringify({ code: this.code, count: this.players.length, phase: this.phase, quick: this.quick }) }).catch(() => { }); } catch (e) { }
   }
   begin(route, tod) {
     clearTimeout(this.auto); this.auto = null;

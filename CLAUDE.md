@@ -10,6 +10,7 @@
 
 ## Cloudflare 部署（線上對戰）
 - `wrangler.jsonc` + `worker/index.js`：Worker 提供 `public/` 靜態檔。對戰架構（100 人 ≈ 13 房，每房 8 人）：`GET /api/match` → `Lobby`（單一 Durable Object，只做配對：把人塞進最滿但未滿的房間）；`/ws?room=XXXX` → `Room`（每個房號各一個 Durable Object，最多 8 人，轉送車輛狀態）。`q=1` 的自動配對房間會向 Lobby 回報人數／階段；湊滿 8 人 8 秒後自動出發（`begin('r139','day')`），房主可提前出發；開賽後不再配對。協定與 `server.js` 相同，前端 `netConnect()` 房號留空＝自動配對，本機 server.js 沒有 `/api/match` 時退回開新房。GitHub Pages 版（docs/）只能單機玩，線上對戰要用 Cloudflare 的網址。
+- 人數上限 100：`Lobby` 記錄所有房間（含已開賽的）的人數，`/api/match`（自動配對）與 `/admit`（手動輸入房號的 `/ws`）在總人數 ≥ `MAX_PLAYERS`(100) 時拒絕；不會把人湊到 100——例如 29 人 → 8、8、8、5 四組，最後一組由電腦補 3 台。`/api/stats` 可看目前人數。所有房間都要回報（`Room.report`），殭屍房間 40 分鐘沒回報會被清掉。
 - 電腦補位（每場湊足 8 台）：房主開賽時伺服器在 `load` 帶 `bots = 8 − 真人數`。補位車 `c.bot = true`、`netId` 為負數（−1…）；**房主的電腦用 `stepAI` 模擬**（`c.ai`），並在 `netTick` 以 `{t:'b', b:[[id,s,d,v,r,st,brake,k,bk]…]}` 送出，伺服器只轉送房主、racing 階段、最多 7 台；其他人把它們當遠端車（`c.remote`，`netApply`）。房主離線時，新房主在 `room` 訊息裡接手（remote→ai）。結果榜只列真人。
 - 用量提醒：Durable Object 的 WebSocket 訊息 20 則算 1 次請求；每位玩家每秒約送 15 則，免費方案每天 10 萬次請求，約夠 100 人同時比賽 20 分鐘，超過需升級 Workers Paid。
 - 在 Cloudflare 後台用 Workers Builds 連 GitHub 儲存庫 `WEIYU168/taiwan-touring-race`（main 分支），每次 push 自動部署。部署指令 `npx wrangler deploy`，不需要建置指令（`public/index.html` 已提交）。
