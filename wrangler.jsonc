@@ -1,0 +1,19 @@
+{
+  // Cloudflare Workers 設定：靜態遊戲檔 + 對戰用 Durable Object
+  "name": "taiwan-touring-race",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    // 只有 /ws 先交給 Worker，其餘網址直接回傳靜態檔
+    "run_worker_first": ["/ws"]
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "HUB", "class_name": "Hub" }]
+  },
+  "migrations": [
+    // 免費方案只能用 SQLite 版的 Durable Object
+    { "tag": "v1", "new_sqlite_classes": ["Hub"] }
+  ]
+}

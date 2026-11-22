@@ -8,6 +8,11 @@
 - 多人連線：`node server.js`（或 `start.sh`／`啟動伺服器.bat`），瀏覽器開 http://localhost:8080
 - 無頭測試（選用）：`tools/headless-test.mjs` 需要本機有 Chrome 與 `npm i -D playwright`；用法見檔頭。遊戲內除錯 API 掛在 `window.G`（sim、place、begin、hit、loadRoute、GAME…）。
 
+## Cloudflare 部署（線上對戰）
+- `wrangler.jsonc` + `worker/index.js`：Worker 提供 `public/` 靜態檔，`/ws` 交給 Durable Object `Hub`（協定與 `server.js` 相同；房間資料在 Hub 裡）。GitHub Pages 版（docs/）只能單機玩，線上對戰要用 Cloudflare 的網址。
+- 在 Cloudflare 後台用 Workers Builds 連 GitHub 儲存庫 `WEIYU168/taiwan-touring-race`（main 分支），每次 push 自動部署。部署指令 `npx wrangler deploy`，不需要建置指令（`public/index.html` 已提交）。
+- 改完程式要先 `node build.js` 再 commit，否則 `public/` 不會更新。
+
 ## 工作規則
 - 改 `src/` 底下的檔案，不要直接改 `public/index.html`（會被建置覆蓋）。
 - 每次修改後跑 `node build.js` 確認沒有錯誤，再開瀏覽器實測。
