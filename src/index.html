@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>139 稜線房車賽</title>
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;700;800&family=Noto+Sans+TC:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{ /* 版面：台灣公路標誌語彙——綠底指示牌、白底縣道盾牌、黃色標線 */
+  --sign:#0b6b3a; --sign-deep:#084a29; --line:#f6c40e; --asphalt:#101214; --paper:#f2f1ea; --soil:#b5482a; --mute:#9aa39c;
+  --num:"Saira Condensed","Arial Narrow",sans-serif; --txt:"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--asphalt);color:var(--paper);font-family:var(--txt);overflow:hidden;-webkit-user-select:none;user-select:none;touch-action:none}
+#gl{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible{outline:3px solid var(--line);outline-offset:2px}
+.shield{display:inline-grid;place-items:center;background:#fff;color:#111;font-family:var(--num);font-weight:800;border:3px solid #111;border-radius:9px;line-height:1}
+/* 載入 */
+#load{position:absolute;inset:0;display:grid;place-content:center;gap:18px;background:var(--asphalt);z-index:9;text-align:center;padding:16px}
+#load .shield{width:96px;height:96px;font-size:50px;margin:0 auto}
+#load p{margin:0;font-size:14px;color:var(--mute);letter-spacing:.08em}
+#bar{width:min(320px,70vw);height:6px;background:#2a2e2c;margin:0 auto;position:relative}
+#bar i{position:absolute;inset:0 auto 0 0;width:0;background:var(--line);transition:width .2s}
+body.ready #load{display:none}
+/* 選單 */
+#menu{position:absolute;inset:0;display:none;pointer-events:none}
+body.show-menu #menu{display:flex}
+.panel{pointer-events:auto;width:min(440px,100%);height:100%;overflow-y:auto;padding:22px 22px 18px;background:linear-gradient(90deg,rgba(8,20,13,.93),rgba(8,20,13,.82) 80%,rgba(8,20,13,0));display:flex;flex-direction:column;gap:14px;touch-action:pan-y}
+.brand{display:flex;gap:14px;align-items:center}
+.brand .shield{width:66px;height:66px;font-size:34px;flex:none}
+h1{margin:0;font-size:32px;font-weight:900;letter-spacing:.04em;line-height:1.1;text-wrap:balance}
+.brand small{display:block;font-size:12.5px;color:var(--line);font-weight:700;letter-spacing:.14em;margin-top:5px}
+.lede{margin:0;font-size:13.5px;line-height:1.7;color:#d5d8d2;max-width:36em}
+.grp{display:grid;gap:6px}
+.grp>span{font-size:12px;letter-spacing:.2em;color:var(--mute);font-weight:700}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg button{flex:1 1 0;min-width:86px;padding:8px 8px;background:rgba(242,241,234,.07);border:1.5px solid rgba(242,241,234,.22);border-radius:6px;font-weight:700;font-size:14.5px;text-align:left;line-height:1.25}
+.seg button small{display:block;font-weight:500;font-size:11px;color:var(--mute);margin-top:2px}
+.seg button[aria-pressed=true]{background:var(--sign);border-color:#fff}
+.seg button[aria-pressed=true] small{color:#cfe6d6}
+.sw{display:flex;gap:7px;flex-wrap:wrap}
+.sw button{width:34px;height:34px;border-radius:50%;border:2px solid rgba(255,255,255,.3);padding:0;position:relative;overflow:hidden}
+.sw button i{position:absolute;inset:auto 0 0 0;height:36%}
+.sw button[aria-pressed=true]{border-color:var(--line);box-shadow:0 0 0 2px var(--line)}
+#go{margin-top:4px;padding:13px 16px;background:var(--line);color:#111;border:0;border-radius:6px;font-weight:900;font-size:19px;letter-spacing:.3em}
+#go:hover{filter:brightness(1.08)}
+.keys{font-size:12px;color:var(--mute);line-height:1.8;margin:0}
+.keys b{font-family:var(--num);font-weight:700;color:var(--paper);border:1px solid rgba(255,255,255,.3);border-radius:4px;padding:0 5px;margin-right:2px}
+.route{list-style:none;margin:2px 0 0;padding:0;display:grid;gap:0;border-left:3px solid var(--line);font-size:12.5px}
+.route li{display:flex;gap:10px;padding:3px 0 3px 10px;align-items:baseline}
+.route b{font-family:var(--num);font-size:14px;color:var(--line);width:5.2em;flex:none;font-variant-numeric:tabular-nums}
+.note{font-size:11.5px;color:var(--mute);line-height:1.6;margin:0}
+/* HUD */
+.hud{display:none;position:absolute;pointer-events:none;font-variant-numeric:tabular-nums}
+body.hud-on .hud{display:block}
+#h-pos{left:16px;top:14px;font-family:var(--num);text-shadow:0 2px 8px rgba(0,0,0,.7)}
+#h-pos #pos{font-size:64px;font-weight:800;line-height:.9}
+#h-pos #posN{font-size:20px;font-weight:700;margin-left:6px;font-family:var(--txt)}
+#h-pos #time{display:block;font-size:30px;font-weight:700;margin-top:4px}
+#h-sign{left:50%;top:12px;transform:translateX(-50%);background:var(--sign);border:2.5px solid #fff;border-radius:8px;padding:6px 12px 6px 8px;box-shadow:0 0 0 2.5px var(--sign),0 6px 18px rgba(0,0,0,.4);align-items:center;gap:10px;white-space:nowrap}
+body.hud-on #h-sign{display:flex}
+#h-sign .shield{width:40px;height:40px;font-size:20px;border-width:2px;border-radius:6px}
+#secName{font-weight:900;font-size:17px;letter-spacing:.04em}
+#secSub{font-size:11.5px;color:#cfe6d6}
+#h-sign .k{font-family:var(--num);font-weight:800;font-size:24px;border-left:2px solid rgba(255,255,255,.5);padding-left:10px;text-align:right;line-height:1}
+#alt{display:block;font-family:var(--txt);font-weight:500;font-size:11px;margin-top:3px;color:#cfe6d6}
+#h-mini{right:10px;top:10px}
+#remainL{display:block;font-family:var(--txt);font-size:11px;font-weight:700;letter-spacing:.18em;color:var(--line);margin-top:8px}
+#remain{display:block;font-size:26px;font-weight:800;line-height:1}
+#dmg{display:flex;align-items:center;justify-content:flex-end;gap:7px;margin-bottom:7px;font-family:var(--txt);font-size:12px;font-weight:700;letter-spacing:.1em}
+#dmg b{font-family:var(--num);font-size:16px;letter-spacing:0;min-width:3.4em;text-align:left}
+#dmgBar{display:flex;gap:2px}#dmgBar i{width:8px;height:12px;background:rgba(255,255,255,.22);border-radius:1px}
+#dmgBar i.y{background:#f6c40e}#dmgBar i.o{background:#f08c1e}#dmgBar i.r{background:#e2341d}
+#dmg.bad b{color:#ff6a4d}
+#h-dash{right:18px;bottom:20px;text-align:right;font-family:var(--num);text-shadow:0 2px 8px rgba(0,0,0,.7)}
+#spd{font-size:84px;font-weight:800;line-height:.82}
+#h-dash .u{font-size:16px;font-weight:700;letter-spacing:.1em;margin-left:6px}
+#gear{display:inline-grid;place-items:center;width:44px;height:50px;background:var(--paper);color:#111;font-size:38px;font-weight:800;border-radius:6px;margin-right:12px;vertical-align:top;text-shadow:none}
+#rpm{display:flex;gap:3px;justify-content:flex-end;margin-bottom:8px}
+#rpm i{width:9px;height:16px;background:rgba(255,255,255,.2);transform:skewX(-12deg)}
+#rpm i.on{background:var(--paper)}#rpm i.on.y{background:var(--line)}#rpm i.on.r{background:#e2341d}
+#h-prog{left:0;right:0;bottom:0;height:5px;background:rgba(0,0,0,.45)}
+#prog{height:100%;width:0;background:var(--line)}
+#toast{position:absolute;left:50%;bottom:86px;transform:translateX(-50%);background:rgba(8,12,10,.82);border-left:4px solid var(--line);padding:8px 14px;font-size:14px;font-weight:700;opacity:0;transition:opacity .25s;pointer-events:none;max-width:90vw}
+#toast.on{opacity:1}
+#wrong{position:absolute;left:50%;top:32%;transform:translateX(-50%);background:#d6221f;color:#fff;font-weight:900;font-size:22px;padding:8px 18px;border-radius:6px;display:none;letter-spacing:.2em}
+#wrong.on{display:block}
+#lights{position:absolute;left:50%;top:26%;transform:translateX(-50%);display:none;gap:14px;background:#0c0d0e;padding:14px 18px;border-radius:12px;border:2px solid #333}
+#lights.on{display:flex}
+#lights i{width:44px;height:44px;border-radius:50%;background:#2a1513}
+#lights i.on{background:#ff3320;box-shadow:0 0 26px #ff3320}#lights i.go{background:#37e36a;box-shadow:0 0 26px #37e36a}
+.card{position:absolute;inset:0;display:none;place-content:center;background:rgba(6,10,8,.6);text-align:center;padding:16px}
+body.show-result #result,body.show-pause #pause{display:grid}
+.card .in{background:var(--sign);border:3px solid #fff;border-radius:12px;box-shadow:0 0 0 3px var(--sign);padding:22px 30px;min-width:min(340px,88vw);display:grid;gap:8px}
+.card h2{margin:0;font-size:30px;font-weight:900;letter-spacing:.08em}
+#resTime{font-family:var(--num);font-size:60px;font-weight:800;line-height:1}
+.card p{margin:0;font-size:14px;color:#dff0e4}
+.card .row{display:flex;gap:8px;margin-top:10px}
+.card button{flex:1;padding:10px;border-radius:6px;border:2px solid #fff;background:transparent;font-weight:900;font-size:15px}
+.card button.pri{background:var(--line);color:#111;border-color:var(--line)}
+/* 觸控 */
+.tc{display:none;position:absolute;gap:12px;align-items:flex-end}
+body.touch.hud-on .tc{display:flex}
+#tcR{right:max(14px,env(safe-area-inset-right));bottom:118px}
+.tc button{width:min(21vw,92px);height:min(21vw,92px);border-radius:18px;background:rgba(10,14,12,.5);border:2px solid rgba(255,255,255,.6);font-size:24px;font-weight:900;touch-action:none}
+#tG{height:min(30vw,132px);background:rgba(11,107,58,.55)}
+#tB{background:rgba(214,34,31,.45)}
+body.autothr #tG{display:none}
+body.broken .tc,body.broken #steer{display:none!important}
+#steer{display:none;position:absolute;left:0;bottom:8px;width:50%;height:52%;touch-action:none}
+body.touch.hud-on #steer{display:block}
+#steer span{position:absolute;left:0;right:0;bottom:18px;text-align:center;font-size:12px;letter-spacing:.1em;color:rgba(255,255,255,.6);text-shadow:0 1px 4px #000}
+#knob{position:absolute;left:50%;bottom:54px;width:64px;height:64px;margin-left:-32px;border-radius:50%;border:2px solid rgba(255,255,255,.7);background:rgba(10,14,12,.4);pointer-events:none}
+#knob.on{background:rgba(246,196,14,.55);border-color:var(--line)}
+#brk{position:absolute;left:50%;bottom:26%;transform:translateX(-50%);background:#d6221f;color:#fff;font-weight:900;font-size:17px;padding:4px 14px;border-radius:5px;letter-spacing:.3em;display:none;pointer-events:none}
+#brk.on{display:block}
+#mp{display:none}body.mp #mp{display:grid}
+.mprow{display:flex;gap:6px;flex-wrap:wrap}
+.mprow input{flex:1 1 90px;min-width:0;padding:9px 10px;border-radius:6px;border:1.5px solid rgba(242,241,234,.35);background:rgba(0,0,0,.35);color:var(--paper);font:inherit;font-size:15px;-webkit-user-select:text;user-select:text;touch-action:auto}
+.mprow button{padding:9px 16px;border-radius:6px;border:0;background:var(--paper);color:#111;font-weight:900}
+#mpList{list-style:none;margin:0;padding:0;display:grid;gap:3px;font-size:14px}#mpList li{display:flex;gap:8px}#mpList b{color:var(--line);font-size:12px;width:3em}
+#go:disabled{background:#6d6a55;color:#222;letter-spacing:.1em;font-size:16px}
+.cars{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.cars button{padding:7px 8px;background:rgba(242,241,234,.07);border:1.5px solid rgba(242,241,234,.22);border-radius:6px;text-align:left;font-weight:800;font-size:14px;line-height:1.2}
+.cars button small{display:block;font-weight:500;font-size:10.5px;color:var(--mute);margin-top:2px}
+.cars button[aria-pressed=true]{background:var(--sign);border-color:#fff}.cars button[aria-pressed=true] small{color:#cfe6d6}
+#carCard{position:absolute;right:max(18px,env(safe-area-inset-right));top:50%;transform:translateY(-50%);width:min(330px,calc(100vw - 32px));background:rgba(9,14,11,.9);border:1.5px solid rgba(242,241,234,.25);border-left:5px solid var(--line);border-radius:10px;padding:16px 18px 16px;display:grid;gap:8px;z-index:6;box-shadow:0 14px 40px rgba(0,0,0,.5);animation:ccIn .35s ease-out}
+#carCard[hidden]{display:none}
+body.showroom #menu .panel{display:none}
+body.showroom #carCard{right:max(28px,6vw)}
+@keyframes ccIn{from{opacity:0;transform:translate(24px,-50%)}to{opacity:1;transform:translate(0,-50%)}}
+#ccX{position:absolute;right:8px;top:6px;width:32px;height:32px;border:0;background:none;font-size:22px;color:var(--mute)}
+#ccType{display:inline-block;font-size:11.5px;font-weight:800;letter-spacing:.14em;color:#111;background:var(--line);padding:2px 8px;border-radius:3px}
+#carCard h2{margin:6px 0 0;font-size:30px;font-weight:900;letter-spacing:.04em;line-height:1.1}
+#ccEn{font-family:var(--num);font-weight:700;letter-spacing:.2em;color:var(--mute);font-size:13px}
+#ccLayout{margin:0;font-size:13px;color:var(--line);font-weight:700}
+#ccDesc{margin:0;font-size:13.5px;line-height:1.65;color:#d9ddd6}
+#ccStats{margin:2px 0 0;display:grid;grid-template-columns:auto 1fr;gap:5px 10px;align-items:center;font-size:12.5px}
+#ccStats dt{color:var(--mute);font-weight:700}#ccStats dd{margin:0;display:flex;gap:3px}
+#ccStats i{flex:1;height:8px;background:rgba(255,255,255,.14);border-radius:1px}#ccStats i.on{background:var(--paper)}
+.ccRow{display:flex;gap:8px;margin-top:4px}#ccBack{flex:1;padding:10px;border:1.5px solid rgba(242,241,234,.4);border-radius:6px;background:none;font-weight:800;font-size:14px}
+body:not(.showroom) #ccBack{display:none}
+#ccGo{flex:1.4;padding:10px;border:0;border-radius:6px;background:var(--line);color:#111;font-weight:900;font-size:15px;letter-spacing:.15em}
+@media (max-width:760px){ #carCard{top:auto;bottom:12px;transform:none;animation:none;right:16px} }
+@media (prefers-reduced-motion:reduce){ #carCard{animation:none} }
+#go{position:sticky;bottom:0;box-shadow:0 0 0 8px rgba(8,20,13,.9)}
+#h-top{right:140px;top:12px;pointer-events:auto;gap:6px}
+body.hud-on #h-top{display:flex}
+#h-top button{width:38px;height:38px;border-radius:6px;background:rgba(10,14,12,.6);border:1.5px solid rgba(255,255,255,.4);font-size:13px;font-weight:900}
+@media (max-width:760px),(max-height:460px){ #remain{font-size:19px} #remainL{margin-top:4px;font-size:10px} #dmg span{display:none} #dmgBar i{width:6px;height:9px} #h-dash{bottom:auto;top:64px;right:12px} #spd{font-size:52px!important} #rpm i{width:6px;height:11px} #gear{width:32px;height:38px;font-size:28px} #h-mini{display:none!important} #h-top{right:10px;top:auto;bottom:calc(100% - 56px)} #h-sign{top:8px} #h-sign .k{font-size:18px} }
+@media (max-width:640px){ #h-sign .k,#secSub{display:none} #spd{font-size:60px} #h-pos #pos{font-size:44px} #h-pos #time{font-size:22px} h1{font-size:26px} #h-mini{display:none!important} #h-top{right:10px;top:64px} }
+@media (prefers-reduced-motion:reduce){ #bar i,#toast{transition:none} }
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+
+<div class="hud" id="h-pos"><span id="pos">1</span><span id="posN">/ 8</span><span id="time">00:00.00</span><span id="remainL">剩餘路程</span><span id="remain">—</span></div>
+<div class="hud" id="h-sign"><span class="shield">139</span><div><div id="secName"></div><div id="secSub"></div></div><div class="k"><span id="kpost">0.0K</span><span id="alt"></span></div></div>
+<div class="hud" id="h-mini"><canvas id="mini" width="120" height="250"></canvas></div>
+<div class="hud" id="h-top"><button id="bCam" aria-label="切換視角">視角</button><button id="bReset" aria-label="回到路面">復位</button><button id="bPause" aria-label="暫停">暫停</button></div>
+<div class="hud" id="h-dash"><div id="dmg"><span>車況</span><b id="dmgN">0／10</b><div id="dmgBar"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div><div id="rpm"></div><span id="gear">1</span><span id="spd">0</span><span class="u">KM/H</span></div>
+<div class="hud" id="h-prog"><div id="prog"></div></div>
+<div id="lights"><i></i><i></i><i></i></div>
+<div id="wrong">逆向</div>
+<div id="brk">煞車</div>
+<div id="toast" role="status"></div>
+<div id="steer" aria-label="左右滑動轉向"><i id="knob"></i><span>◀ 左右滑動轉向 ▶</span></div>
+<div class="tc" id="tcR"><button id="tB" aria-label="煞車">煞</button><button id="tG" aria-label="油門">油</button></div>
+
+<div id="menu"><div class="panel">
+  <div class="brand"><span class="shield">139</span><div><h1><span id="rTitle">139 稜線</span> 房車賽</h1><small id="rSub"></small></div></div>
+  <div class="grp"><span>路線</span><div class="seg" id="sRoute">
+    <button data-v="r139" aria-pressed="true">139 稜線<small>山稜・茶園　12 km</small></button><button data-v="kenting" aria-pressed="false">墾丁 台26<small>珊瑚礁海岸　9 km</small></button><button data-v="dapeng" aria-pressed="false">大鵬灣<small>潟湖・賽車場　8 km</small></button></div></div>
+  <p class="lede" id="rDesc"></p>
+  <div class="grp"><span>模式</span><div class="seg" id="sMode">
+    <button data-v="race" aria-pressed="true">房車賽<small>8 車同場競速</small></button><button data-v="time" aria-pressed="false">單車計時<small>挑戰個人最佳</small></button><button data-v="cruise" aria-pressed="false">環景巡航<small>自動駕駛・360° 環視</small></button><button data-v="online" aria-pressed="false">線上對戰<small>最多 8 人同場</small></button></div></div>
+  <div class="grp" id="mp"><span>線上對戰房間</span><div class="mprow"><input id="mpName" maxlength="8" placeholder="暱稱" autocomplete="off"><input id="mpRoom" maxlength="6" placeholder="房號（留空＝開新房間）" autocomplete="off"><button id="mpJoin">連線</button></div><p class="note" id="mpStat">輸入暱稱後按「連線」。房主選好路線與時段再按出發。</p><ol id="mpList"></ol></div>
+  <div class="grp"><span>時段</span><div class="seg" id="sTod">
+    <button data-v="dawn" aria-pressed="false">晨曦<small>中央山脈日出</small></button><button data-v="day" aria-pressed="true">晴日<small>稜線晴空</small></button><button data-v="dusk" aria-pressed="false">夕照<small>平原落日</small></button></div></div>
+  <div class="grp"><span>對手強度</span><div class="seg" id="sDiff"><button data-v="0" aria-pressed="false">輕鬆</button><button data-v="1" aria-pressed="true">標準</button><button data-v="2" aria-pressed="false">職業</button></div></div>
+  <div class="grp"><span>方向盤</span><div class="seg" id="sSteer"><button data-v="0" aria-pressed="false">靈敏<small>反應快、轉角大</small></button><button data-v="1" aria-pressed="true">中等<small>預設</small></button><button data-v="2" aria-pressed="false">穩重<small>修正細膩、不易過度</small></button></div></div>
+  <div class="grp"><span>操控</span><div class="seg" id="sAid"><button data-v="1" aria-pressed="true">輔助<small>穩定控制・煞車提示</small></button><button data-v="0" aria-pressed="false">擬真<small>車尾較活潑</small></button></div><div class="seg" id="sAuto"><button data-v="0" aria-pressed="true">手動油門</button><button data-v="1" aria-pressed="false">自動油門<small>只需轉向與煞車</small></button></div></div>
+  <div class="grp"><span>畫質（卡頓時會自動調降）</span><div class="seg" id="sQ"><button data-v="min" aria-pressed="false">省電</button><button data-v="low" aria-pressed="false">流暢</button><button data-v="med" aria-pressed="true">標準</button><button data-v="high" aria-pressed="false">精緻</button></div></div>
+  <div class="grp"><span>車款（游標移到車款上可看介紹）</span><div class="cars" id="sCar"></div></div>
+  <div class="grp"><span>車色</span><div class="sw" id="sLiv"></div></div>
+  <button id="go">出　發</button>
+  <p class="keys"><b>W</b><b>↑</b>油門　<b>S</b><b>↓</b>煞車／倒車　<b>A</b><b>D</b><b>←</b><b>→</b>轉向　<b>空白</b>手煞車<br>撞到第 9 次動力下降、第 10 次拋錨；吃到粉紅愛心可歸零<br><b>C</b>視角　<b>R</b>復位　<b>P</b>暫停　<b>M</b>靜音　<b>H</b>隱藏介面　拖曳畫面＝環景<br>手機／平板：左半邊左右滑動轉向，右側踏板煞車與油門</p>
+  <ol class="route" id="route"></ol>
+  <p class="note" id="rNote"></p>
+</div></div>
+
+<div class="card" id="result"><div class="in"><h2 id="resPos">完賽</h2><div id="resTime">00:00.00</div><p id="resBest"></p><p id="resAvg"></p><p id="resList"></p><div class="row"><button id="bMenu1">回選單</button><button class="pri" id="bAgain">再跑一次</button></div></div></div>
+<div class="card" id="pause"><div class="in"><h2>暫停</h2><p>拖曳畫面可環視四周</p><div class="row"><button id="bMenu2">回選單</button><button class="pri" id="bResume">繼續</button></div></div></div>
+
+<aside id="carCard" aria-live="polite" hidden>
+  <button id="ccX" aria-label="返回選單">×</button>
+  <div class="ccHead"><span id="ccType"></span><h2 id="ccName"></h2><small id="ccEn"></small></div>
+  <p id="ccLayout"></p>
+  <p id="ccDesc"></p>
+  <dl id="ccStats"></dl>
+  <div class="ccRow"><button id="ccBack">返回選單</button><button id="ccGo">開這台出發</button></div>
+</aside>
+<div id="load"><span class="shield">139</span><p id="loadTxt">準備中</p><div id="bar"><i id="barI"></i></div></div>
+<script>
+/*__JS__*/
+</script>
+</body>
+</html>

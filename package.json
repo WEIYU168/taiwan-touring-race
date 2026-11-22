@@ -1,0 +1,8 @@
+{
+  "name": "taiwan-touring-race",
+  "version": "1.5.0",
+  "private": true,
+  "description": "台灣房車賽：139 稜線／墾丁 台26／大鵬灣 環灣。純 WebGL2、零相依。",
+  "scripts": { "build": "node build.js", "start": "node server.js", "dev": "node build.js && node server.js" },
+  "engines": { "node": ">=16" }
+}
