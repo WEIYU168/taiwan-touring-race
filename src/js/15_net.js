@@ -49,24 +49,34 @@ async function netConnect(retry = 0) {
 function netHandle(m) {
   if (m.t === 'room') {
     NET.id = m.you; NET.host = m.host; NET.room = m.room; NET.players = m.players; $('mpRoom').value = m.room; netRender();
-    if (GAME.online) GAME.cars = GAME.cars.filter(c => !c.remote || NET.players.some(p => p.id === c.netId));
+    if (GAME.online) {
+      GAME.cars = GAME.cars.filter(c => !c.remote || c.bot || NET.players.some(p => p.id === c.netId));
+      // 房主離線、換我當房主：接手模擬補位的電腦車（從牠們目前的位置繼續跑）
+      if (NET.host === NET.id) for (const c of GAME.cars) if (c.bot && c.remote) { c.remote = false; c.ai = true; c.vcap = 99; }
+    }
   } else if (m.t === 'load') {
-    netStatus('房主已出發，載入路線中…');
+    NET.bots = m.bots | 0;
+    netStatus('房主已出發，載入路線中…' + (NET.bots ? '（' + NET.bots + ' 台電腦車補位）' : ''));
     (async () => { if (!ROUTE || ROUTE.key !== m.route) await loadRoute(m.route); GAME.tod = m.tod; setTimeOfDay(m.tod); setSeg('sTod', m.tod); REN.forceFar = true; setSeg('sMode', 'online'); GAME.selMode = 'online'; document.body.classList.add('mp'); netRender(); netSend({ t: 'ready' }); })().catch(e => netStatus('路線載入失敗：' + e.message));
   } else if (m.t === 'go') {
     NET.fins = {}; if (AUDIO.ctx && AUDIO.ctx.state === 'suspended') AUDIO.ctx.resume();
     document.body.classList.remove('show-menu', 'show-result', 'show-pause'); GAME.paused = false; CS.init = false; startSession('online');
   } else if (m.t === 's') {
     const c = GAME.cars.find(c => c.netId === m.id); if (!c || !c.remote) return;
-    c.ns = m.s; c.nd = m.d; c.nv = m.v; c.nrel = m.r; c.nt = performance.now(); c.steer = m.st; c.brakeLight = m.b;
-    c.nro = +m.ro || 0; c.nay = +m.ay || 0;
-    c.dmg = m.k | 0; if (m.h && m.h.length === 40) c.dents = Float32Array.from(m.h); if (m.bk && !c.broken) { c.broken = true; c.brokenT = 0; }
-    if (c.fresh) { c.s = m.s; c.d = m.d; c.v = m.v; c.fresh = false; }
+    netApply(c, m);
+  } else if (m.t === 'b') { // 房主模擬的電腦車：[id, s, d, v, r, st, brake, k, bk]
+    for (const e of m.b || []) { const c = GAME.cars.find(c => c.netId === e[0]); if (c && c.remote) netApply(c, { s: e[1], d: e[2], v: e[3], r: e[4], st: e[5], b: e[6], k: e[7], bk: e[8] }); }
   } else if (m.t === 'fin') {
     NET.fins[m.id] = m.time; const c = GAME.cars.find(c => c.netId === m.id); if (c && m.time >= 0) { c.finished = true; c.ftime = m.time; } netResults();
   } else if (m.t === 'auto') {
     if (m.sec > 0) netStatus('已湊滿 8 人，' + m.sec + ' 秒後自動出發（房主也可以提前按出發）。'); else netRender();
   } else if (m.t === 'err') netStatus(m.msg);
+}
+function netApply(c, m) {
+  c.ns = m.s; c.nd = m.d; c.nv = m.v; c.nrel = m.r; c.nt = performance.now(); c.steer = m.st; c.brakeLight = m.b;
+  c.nro = +m.ro || 0; c.nay = +m.ay || 0;
+  c.dmg = m.k | 0; if (m.h && m.h.length === 40) c.dents = Float32Array.from(m.h); if (m.bk && !c.broken) { c.broken = true; c.brokenT = 0; }
+  if (c.fresh) { c.s = m.s; c.d = m.d; c.v = m.v; c.fresh = false; }
 }
 function netResults() {
   const T = id => NET.fins[id] < 0 ? 1e9 : NET.fins[id];
@@ -78,6 +88,11 @@ function netTick(dt) {
   NET.acc += dt; if (NET.acc < 0.066) return; NET.acc = 0;
   const p = GAME.player; if (!p) return;
   const sendH = p.dentVer !== NET.dentVer || (NET.hTick = (NET.hTick || 0) + 1) % 30 === 0; NET.dentVer = p.dentVer;
+  // 房主負責把補位電腦車的狀態一起送出去
+  if (NET.id === NET.host && GAME.state === 'racing') {
+    const b = []; for (const c of GAME.cars) if (c.bot && c.ai) b.push([c.netId, +c.s.toFixed(2), +c.d.toFixed(2), +c.v.toFixed(2), +angDiff(c.yaw, trackAt(c.s, _at).th).toFixed(3), +(c.steer || 0).toFixed(2), c.brakeLight ? 1 : 0, c.dmg | 0, 0]);
+    if (b.length) netSend({ t: 'b', b });
+  }
   netSend({ t: 's', ro: p.air ? +p.roll.toFixed(2) : 0, ay: p.air ? +(p.y - trackAt(p.s, _at).y).toFixed(2) : 0, k: p.dmg || 0, bk: p.broken ? 1 : 0, h: sendH && p.dents ? Array.from(p.dents, v => +v.toFixed(2)) : undefined, s: +p.s.toFixed(2), d: +p.d.toFixed(2), v: +p.v.toFixed(2), r: +angDiff(p.yaw, trackAt(p.s, _at).th).toFixed(3), st: +p.steer.toFixed(2), b: p.brakeLight });
 }
 // 遠端車輛：依最後收到的狀態沿賽道外插，再平滑追上

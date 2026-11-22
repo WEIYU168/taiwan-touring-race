@@ -15,19 +15,27 @@ function placeOnTrack(c, s, d) {
 function startSession(mode) {
   const online = mode === 'online'; if (online) mode = 'race'; GAME.online = online;
   GAME.mode = mode; GAME.cars = []; GAME.time = 0;
-  const n = online ? NET.players.length : mode === 'race' ? 8 : 1;
+  // 線上：真人之外，湊不滿 8 人就由電腦補足（NET.bots 由伺服器在開賽時給；由房主的電腦模擬後同步給其他人）
+  const nh = online ? NET.players.length : 0, nb = online ? Math.max(0, Math.min(NET.bots | 0, 8 - nh)) : 0;
+  const n = online ? nh + nb : mode === 'race' ? 8 : 1;
   const order = []; for (let i = 0; i < 8; i++) if (i !== GAME.livery) order.push(i);
+  const freeLiv = []; if (online) for (let i = 0; i < 8; i++) if (!NET.players.some(p => (p.liv & 7) === i)) freeLiv.push(i);
   let ri = 0;
   for (let g = 0; g < n; g++) {
-    const pl = online ? NET.players[g] : null;
-    const isP = online ? pl.id === NET.id : mode !== 'race' ? true : g === n - 3; // 單機：玩家第 6 位起跑
+    const isBot = online && g >= nh;
+    const pl = online && !isBot ? NET.players[g] : null;
+    const isP = online ? !isBot && pl.id === NET.id : mode !== 'race' ? true : g === n - 3; // 單機：玩家第 6 位起跑
     const c = mkCar(g, online ? false : !isP);
     c.model = isP ? (GAME.carModel || 0) : (g * 5 + 1) % CAR_MODELS.length;
     if (!isP) { const ph = CAR_MODELS[c.model].phys; c.skill *= 1 + (ph.pow - 1) * 0.12 + (ph.grip - 1) * 0.3; }
     c.liv = isP ? LIVERIES[GAME.livery] : LIVERIES[order[ri % 7]]; c.name = isP ? '你' : RIVALS[ri % 7]; if (!isP) ri++;
     const dk = DIFFS[GAME.diff].k; c.skill = dk * (1.0 - g * 0.012) * (0.985 + hash2(g, 3, 9) * 0.03); c.off = (g % 2 ? -1 : 1) * 0.6; c.react = 0.15 + hash2(g, 5, 2) * 0.35;
     placeOnTrack(c, mode === 'race' ? S_START - 7 - g * 7.5 + 1.2 : S_START - 4, mode === 'race' ? (g % 2 ? -2.1 : 2.1) : 0);
-    if (online) { c.remote = !isP; c.netId = pl.id; c.fresh = true; c.liv = LIVERIES[pl.liv % 8]; c.name = pl.name; c.model = (pl.car | 0) % CAR_MODELS.length; }
+    if (isBot) { // 補位的電腦車：房主模擬（ai），其他人當遠端車接收（remote）
+      const k = g - nh; c.bot = true; c.netId = -(k + 1); c.fresh = true;
+      if (freeLiv.length) c.liv = LIVERIES[freeLiv[k % freeLiv.length]];
+      const host = NET.id === NET.host; c.ai = host; c.remote = !host;
+    } else if (online) { c.remote = !isP; c.netId = pl.id; c.fresh = true; c.liv = LIVERIES[pl.liv % 8]; c.name = pl.name; c.model = (pl.car | 0) % CAR_MODELS.length; }
     if (isP) GAME.player = c;
     GAME.cars.push(c);
   }

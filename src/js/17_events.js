@@ -23,7 +23,7 @@ function planHazards() {
   const s2 = findStraight(0.8, used); used.push(s2);
   const h1 = findStraight(0.3, used); used.push(h1);
   const h2 = findStraight(0.62, used);
-  HAZ.hearts = [{ s: h1, d: 1.9, got: false }, { s: h2, d: -1.9, got: false }];
+  HAZ.hearts = [{ s: h1, d: 0, got: false }, { s: h2, d: 0, got: false }]; // 路中央，兩條車道的車都吃得到
   const hw1 = trackAt(s1, {}).hw, hw2 = trackAt(s2, {}).hw;
   // 防撞緩衝車：右側車道，車尾的緩衝墊朝向來車
   HAZ.truck = { s: s1, d: -(hw1 - 1.42), s0: s1 - 4.6, s1: s1 + 4.1, hw: 1.25 };

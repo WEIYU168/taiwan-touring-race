@@ -95,7 +95,8 @@ export class Room {
   }
   begin(route, tod) {
     clearTimeout(this.auto); this.auto = null;
-    this.phase = 'loading'; this.ready = new Set(); this.cast({ t: 'load', route, tod }); this.report();
+    // 湊不滿 8 人就由電腦補足：bots＝要補幾台（由房主的電腦模擬並同步給大家）
+    this.phase = 'loading'; this.ready = new Set(); this.cast({ t: 'load', route, tod, bots: Math.max(0, ROOM_MAX - this.players.length) }); this.report();
     clearTimeout(this.timer); this.timer = setTimeout(() => this.go(), 25000);
   }
   go() { if (this.phase !== 'loading') return; clearTimeout(this.timer); this.phase = 'racing'; this.cast({ t: 'go' }); this.report(); }
@@ -130,6 +131,10 @@ export class Room {
         const o = { t: 's', id: me.id, s: +m.s, d: +m.d, v: +m.v, r: +m.r, st: +m.st, b: m.b ? 1 : 0, k: Math.min(10, m.k | 0), bk: m.bk ? 1 : 0, ro: +m.ro || 0, ay: +m.ay || 0 };
         if (Array.isArray(m.h) && m.h.length === 40) o.h = m.h.map(Number);
         this.cast(o, me);
+      } else if (m.t === 'b' && me.id === this.host && this.phase === 'racing' && Array.isArray(m.b)) {
+        // 房主送來的電腦車狀態：[id, s, d, v, r, st, brake, k, bk]，最多 7 台
+        const b = m.b.slice(0, 7).filter(e => Array.isArray(e) && e.length >= 9).map(e => e.slice(0, 9).map(Number));
+        if (b.length) this.cast({ t: 'b', b }, me);
       } else if (m.t === 'fin') this.cast({ t: 'fin', id: me.id, time: +m.time }, me);
     });
     const leave = () => {
