@@ -1,15 +1,15 @@
 // Cloudflare Worker：靜態遊戲檔（assets）＋線上對戰
 //
-// 架構（可同時容納 100 人以上，每 8 人一組）：
+// 架構（人數上限 96 人 = 12 組 × 8 人）：
 //   GET  /api/match   → Lobby（單一 Durable Object，只做配對、流量極小）回傳一個還沒滿的房號
 //   WS   /ws?room=XXXX[&q=1] → Room（每個房號各一個 Durable Object，最多 8 人，負責轉送車輛狀態）
-// 房間彼此獨立，所以 100 人 ≈ 13 個房間，各自跑在不同的 Durable Object 上，不會互相拖慢。
+// 房間彼此獨立，所以 96 人 = 12 個房間，各自跑在不同的 Durable Object 上，不會互相拖慢。
 // 協定與 server.js 相同（見 src/js/15_net.js 檔頭）。
 
 const ROUTES = ['r139', 'kenting', 'dapeng'], TODS = ['dawn', 'day', 'dusk'];
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const ROOM_MAX = 8, MAX_PLAYERS = 100, AUTO_START_MS = 8000, PENDING_MS = 20000, STALE_MS = 40 * 60 * 1000;
-const CAP_MSG = '目前線上已有 100 人在玩（人數上限 100 人），請稍後再試。';
+const ROOM_MAX = 8, MAX_PLAYERS = 96, AUTO_START_MS = 8000, PENDING_MS = 20000, STALE_MS = 40 * 60 * 1000; // 96 人 = 剛好 12 組 × 8 人
+const CAP_MSG = '目前線上已有 96 人在玩（人數上限 96 人，共 12 組），請稍後再試。';
 const json = (o, init) => new Response(JSON.stringify(o), { ...init, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } });
 const lobbyOf = env => env.LOBBY.get(env.LOBBY.idFromName('lobby'));
 
@@ -54,9 +54,9 @@ export class Lobby {
   async fetch(request) {
     const path = new URL(request.url).pathname, now = Date.now();
     if (path === '/match') {
-      // 人數上限 100：滿了就不再配對，請玩家稍後再試
+      // 人數上限 96（12 組）：滿了就不再配對，請玩家稍後再試
       if (this.total(now) >= MAX_PLAYERS) return json({ full: true, msg: CAP_MSG });
-      // 先塞進「最滿但還沒滿」的房間，湊滿 8 人；沒有就開新房。人不用湊滿 100，最後一房不足 8 人由電腦補位
+      // 先塞進「最滿但還沒滿」的房間，湊滿 8 人；沒有就開新房。人不用湊滿 96，最後一房不足 8 人由電腦補位
       let best = null, bestN = -1;
       for (const [c, e] of this.rooms) { const n = this.size(e, now); if (e.quick && e.phase === 'lobby' && n < ROOM_MAX && n > bestN) { best = c; bestN = n; } }
       if (best === null) { best = this.newCode(); this.rooms.set(best, { count: 0, phase: 'lobby', quick: true, pend: [], ts: now }); }

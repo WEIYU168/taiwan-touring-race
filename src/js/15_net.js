@@ -30,7 +30,7 @@ async function netConnect(retry = 0) {
   try { localStorage.setItem('r139_name', name); } catch (e) { }
   netStatus(room ? '連線中…' : '自動配對中…');
   if (!room) {
-    try { const r = await fetch('/api/match', { cache: 'no-store' }); if (r.ok) { const j = await r.json(); if (j.full) { netStatus(j.msg || '目前線上人數已滿（上限 100 人），請稍後再試。'); return; } room = j.room; quick = true; } } catch (e) { }
+    try { const r = await fetch('/api/match', { cache: 'no-store' }); if (r.ok) { const j = await r.json(); if (j.full) { netStatus(j.msg || '目前線上人數已滿（上限 96 人），請稍後再試。'); return; } room = j.room; quick = true; } } catch (e) { }
     if (!room) room = Array.from({ length: 4 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.random() * 32 | 0]).join('');
   }
   let ws; try { ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws?room=' + room + (quick ? '&q=1' : '')); } catch (e) { netStatus('這個頁面無法連到對戰伺服器。'); return; }
