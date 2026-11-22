@@ -3,7 +3,7 @@
 在專案根目錄執行 Claude Code。先讀完本檔與下方的專案指引再改程式。
 
 ## 常用指令
-- 建置：`node build.js` → 產出 `public/index.html`（單一自含檔，直接用瀏覽器開即可玩）
+- 建置：`node build.js` → 產出 `public/index.html`（單一自含檔，直接用瀏覽器開即可玩），並同步複製到 `docs/index.html`（GitHub Pages 從 main 的 /docs 發佈：https://weiyu168.github.io/taiwan-touring-race/ ；改完要重新 build 並 push 才會更新）
 - 單機玩：雙擊 `public/index.html`
 - 多人連線：`node server.js`（或 `start.sh`／`啟動伺服器.bat`），瀏覽器開 http://localhost:8080
 - 無頭測試（選用）：`tools/headless-test.mjs` 需要本機有 Chrome 與 `npm i -D playwright`；用法見檔頭。遊戲內除錯 API 掛在 `window.G`（sim、place、begin、hit、loadRoute、GAME…）。
