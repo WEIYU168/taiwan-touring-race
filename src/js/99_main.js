@@ -55,7 +55,7 @@ async function boot() {
     stepGame(dt); updateGameCamera(dt);
     if (window.__cam) { const c = window.__cam; setCameraLook(c[0], c[1], c[2], c[3], c[4], c[5]); CAM.fov = 55 * DEG; REN.focus = [c[3], c[4], c[5]]; }
     updateHUD(dt);
-    REN.stats.tris = 0; renderFrame(dt);
+    REN.stats.tris = 0; renderFrame(dt); updateNameTags();
     // 動態解析度 → 仍卡頓則自動降一級畫質
     if (!window.__manual && raw < 0.5) { n++; if (raw > 0.027) slow++; else if (raw < 0.019) fast++; acc += raw;
       if (acc > 2) { if (slow > n * 0.45) { if (REN.scale > 0.62) REN.scale *= 0.86; else { const i = TIERS.indexOf(REN.qkey); if (i < TIERS.length - 1) { setQuality(TIERS[i + 1]); REN.scale = 1; setSeg('sQ', TIERS[i + 1]); toast('已自動調整畫質為「' + QUALITY[TIERS[i + 1]].name + '」以維持流暢'); } } }

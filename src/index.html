@@ -114,6 +114,29 @@ body.touch.hud-on #steer{display:block}
 #steer span{position:absolute;left:0;right:0;bottom:18px;text-align:center;font-size:12px;letter-spacing:.1em;color:rgba(255,255,255,.6);text-shadow:0 1px 4px #000}
 #knob{position:absolute;left:50%;bottom:54px;width:64px;height:64px;margin-left:-32px;border-radius:50%;border:2px solid rgba(255,255,255,.7);background:rgba(10,14,12,.4);pointer-events:none}
 #knob.on{background:rgba(246,196,14,.55);border-color:var(--line)}
+/* 連線對戰：對手姓名標籤（跟著車子移動）與即時排名 */
+#tags{position:absolute;inset:0;overflow:hidden;pointer-events:none;display:none}
+body.rank-on #tags{display:block}
+.tag{position:absolute;left:0;top:0;white-space:nowrap;font-size:13px;font-weight:800;letter-spacing:.03em;color:#fff;padding:3px 8px 3px 6px;border-radius:6px;background:rgba(8,14,10,.62);border-left:4px solid var(--c,#f6c40e);text-shadow:0 1px 3px #000;transform-origin:50% 100%;will-change:transform,opacity}
+.tag small{font-size:10px;font-weight:600;opacity:.7;margin-left:5px}
+.tag.bot{color:#d6dcd6;background:rgba(8,14,10,.45)}
+.tag .n{display:inline-block;min-width:1.1em;margin-right:5px;color:var(--line,#f6c40e)}
+#rank{position:absolute;left:max(12px,env(safe-area-inset-left));top:196px;width:168px;display:none;pointer-events:none;background:rgba(8,14,10,.5);border-radius:9px;padding:6px 6px 6px;--rh:24px}
+body.rank-on #rank{display:block}
+body.broken #rank{opacity:.6}
+#rank b{display:block;font-size:11px;letter-spacing:.2em;color:rgba(255,255,255,.65);padding:0 4px 4px}
+#rankList{list-style:none;margin:0;padding:0;position:relative;height:calc(var(--rh)*8)}
+#rankList li{position:absolute;left:0;right:0;top:0;height:var(--rh);line-height:var(--rh);display:flex;align-items:center;gap:6px;padding:0 6px;border-radius:5px;font-size:13px;font-weight:700;color:#fff;text-shadow:0 1px 2px #000;transition:transform .45s cubic-bezier(.2,.8,.2,1);will-change:transform}
+#rankList li .no{width:1.2em;text-align:center;color:rgba(255,255,255,.7);font-weight:900}
+#rankList li .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#rankList li .st{font-size:10px;opacity:.75;font-weight:600}
+#rankList li i{width:4px;height:60%;border-radius:2px;background:var(--c,#999);flex:none}
+#rankList li.me{background:rgba(246,196,14,.9);color:#111;text-shadow:none}
+#rankList li.me .no{color:#111}
+#rankList li.bot .nm{opacity:.78;font-weight:600}
+#rankList li.done .st{opacity:1;color:#9fe3a8}
+#rankList li.me.done .st{color:#14501d}
+@media (max-width:760px),(max-height:460px){ #rank{top:176px;width:136px;padding:4px;--rh:19px} #rankList li{font-size:11px;gap:4px;padding:0 4px} #rank b{display:none} .tag{font-size:11px;padding:2px 6px 2px 5px} }
 #brk{position:absolute;left:50%;bottom:26%;transform:translateX(-50%);background:#d6221f;color:#fff;font-weight:900;font-size:17px;padding:4px 14px;border-radius:5px;letter-spacing:.3em;display:none;pointer-events:none}
 #brk.on{display:block}
 #mp{display:none}body.mp #mp{display:grid}
@@ -165,6 +188,8 @@ body.hud-on #h-top{display:flex}
 <div class="hud" id="h-prog"><div id="prog"></div></div>
 <div id="lights"><i></i><i></i><i></i></div>
 <div id="wrong">逆向</div>
+<div id="tags" aria-hidden="true"></div>
+<div id="rank" aria-label="即時排名"><b>即時排名</b><ol id="rankList"></ol></div>
 <div id="brk">煞車</div>
 <div id="toast" role="status"></div>
 <div id="steer" aria-label="左右滑動轉向"><i id="knob"></i><span>◀ 左右滑動轉向 ▶</span></div>
