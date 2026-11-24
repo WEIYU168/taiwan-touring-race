@@ -115,3 +115,9 @@
 - 方向盤手感（v1.5.1）：`STEER` 多了 `kb`（鍵盤輸入爬升速度）；鍵盤輸入在 `readInput` 內漸進爬升（高速更慢）並套 1.35 次方曲線；`stepPlayer` 的最低轉角隨車速遞減、反打回正倍率 1.6。
 - 畫面（v1.5.1）：`08_render.js` 新增 SSAO（`POST_AO_FS`，半解析度、`QUALITY.ao`）與太陽光束（`POST_RAYS_FS`，`QUALITY.rays`），場景 FBO 改用可取樣深度貼圖 `REN.scene.dtex`；車內視角時兩者關閉。車漆有金屬亮片、清漆第二高光與反射中的樹林剪影；`11_props.js` 新增 `person()` 路人、`scooter()` 機車、`windowExtras()` 立體鐵窗與冷氣機。
 - 展示間：選車後 `startShowroom(model)`，車開到定位停下後 `showCarCard()` 跳出介紹卡（#carCard）。
+
+## 甩尾輔助／愛心兩顆／被追撞不減速
+- stepPlayer：c.drift（高速＋大轉角時車尾後軸抓地 -20%，漂移角 >10° 起自動回穩力矩；煞車/倒車/離開路面/AI 不啟動）；c.slip 與 fxEmitCar 的白煙都用它。
+- planHazards：每個地點兩顆愛心，擺法 中+左／中+右／左+右（由位置決定，各玩家一致），d=±3.0，吃取半徑 s 2.6、d 1.6。
+- collideCars：玩家被後車追撞（sg<0）時不減速，只有後車被推慢；撞擊仍會登記。
+

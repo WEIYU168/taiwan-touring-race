@@ -101,7 +101,11 @@ function stepPlayer(c, dt) {
   const mu = 1.34 * surf * ph.grip;
   const den = Math.max(sp, 4);
   const af = Math.atan2(v + a * r, den) - dl * (u >= 0 ? 1 : -1), ar = Math.atan2(v - b * r, den);
-  let Fyf = -mu * Fzf * pac(af), Fyr = -mu * (GAME.aid ? 1.13 : 1.05) * Fzr * pac(ar) * (hb > 0.5 ? 0.35 : 1);
+  // 甩尾輔助：大彎（高速＋大轉角）時讓車尾稍微鬆開、帶一點漂移角，車頭更容易切進彎；漂移角過大會自動回穩，不會轉圈
+  const beta = Math.atan2(v, Math.max(sp, 6)) * (u >= 0 ? 1 : -1);
+  const drift = (c.ai || c.broken || reverse || offroad) ? 0 : smooth(15, 28, sp) * smooth(0.45, 0.8, Math.abs(c.steer) / Math.max(0.05, dmax)) * (1 - 0.6 * smooth(0.3, 0.9, brk));
+  c.drift = lerp(c.drift || 0, drift, Math.min(1, dt * 6));
+  let Fyf = -mu * Fzf * pac(af), Fyr = -mu * (GAME.aid ? 1.13 : 1.05) * (1 - 0.2 * c.drift) * Fzr * pac(ar) * (hb > 0.5 ? 0.35 : 1);
   const sgnU = u > 0.3 ? 1 : u < -0.3 ? -1 : 0;
   // 煞車力依前後軸荷重分配（煞車時重量前移，前輪吃比較多），兩軸同時逼近抓地極限；放開煞車時維持原本的 62／38
   // 再多偏向前輪一些（像真的煞車系統）：前輪先逼近極限、後輪留有餘裕，高速全力煞車車尾才不會甩
@@ -127,6 +131,8 @@ function stepPlayer(c, dt) {
   // 穩定輔助（溫和的偏航阻尼）
   const rref = u * dl / (L * (1 + 0.0022 * u * u));
   Mz += -(r - rref) * Iz * (GAME.aid ? 2.1 : 0.7) * ph.stab * smooth(4, 14, sp);
+  // 漂移回穩：車尾甩出超過約 10° 開始把車頭拉回行進方向，超過 20° 力道很強，所以能甩得帥又不會轉圈；出彎時自動收正
+  if (c.drift > 0.01 || Math.abs(beta) > 0.2) { const ab = Math.abs(beta), k = (1.2 + 6 * smooth(0.17, 0.4, ab)) * Math.max(c.drift, 0.4) * smooth(8, 18, sp); Mz += Math.sign(beta) * ab * Iz * k * (beta * r < 0 ? 1 : 0.5); }
   u += (ax + v * r) * dt; v += (ay - u * r) * dt; r += Mz / Iz * dt;
   // 低速回歸運動學模型
   const kk = 1 - smooth(1.5, 7, sp);
@@ -156,7 +162,7 @@ function stepPlayer(c, dt) {
   if (_pp.s < 3 && c.vx * _pt.tx + c.vz * _pt.tz < 0) { c.vx = 0; c.vz = 0; }
   if (_pp.s > S_END - 8) { c.vx *= 0.9; c.vz *= 0.9; }
   c.s = _pp.s; c.d = _pp.d; c.v = u; c.offroad = offroad;
-  c.slip = Math.max(Math.abs(ar) > 0.11 ? (Math.abs(ar) - 0.11) * 5 : 0, spinning * 2, Math.abs(af) > 0.14 ? (Math.abs(af) - 0.14) * 3 : 0, (brk > 0.9 && sp > 20) ? 0.15 : 0) * smooth(4, 12, sp);
+  c.slip = Math.max(c.drift * Math.min(1, Math.abs(beta) * 6) * 0.9,Math.abs(ar) > 0.11 ? (Math.abs(ar) - 0.11) * 5 : 0, spinning * 2, Math.abs(af) > 0.14 ? (Math.abs(af) - 0.14) * 3 : 0, (brk > 0.9 && sp > 20) ? 0.15 : 0) * smooth(4, 12, sp);
   c.brakeLight = c.broken ? 0 : brk > 0.05 && !reverse ? 1 : 0;
   settleCar(c, dt, _pt);
   stepHazards(c, dt);
@@ -217,7 +223,7 @@ function collideCars(cars, dt = 0.0085) {
   for (const o of cars) { if (o === p) continue; const dsv = o.s - p.s, dd = o.d - p.d; if (Math.abs(dsv) < 4.35 && Math.abs(dd) < 1.86) {
     const ox = 4.35 - Math.abs(dsv), oy = 1.86 - Math.abs(dd);
     if (oy < ox * 0.6) { const sg = Math.sign(dd) || 1; side = { o, sg }; o.d += sg * oy * 0.5; p.x -= t.nx * sg * oy * 0.5; p.z -= t.nz * sg * oy * 0.5; const vn = (p.vx * t.nx + p.vz * t.nz) * sg; if (vn > 0) { p.vx -= t.nx * sg * vn * 0.8; p.vz -= t.nz * sg * vn * 0.8; if (vn > 1) AUDIO.hit(Math.min(0.7, vn / 8)); } } // 側面擦碰（並排、超車時）：只推開，不算撞擊
-    else { const sg = Math.sign(dsv) || 1, rv = (p.v - o.v) * sg; if (rv > 0) { const e = rv * 0.55; o.v += sg * e; const pv = Math.hypot(p.vx, p.vz) || 1, k = Math.max(0, 1 - e / pv); p.vx *= k; p.vz *= k; if (rv > 1.5) { AUDIO.hit(Math.min(1, rv / 10)); GAME.shake = Math.min(1, rv / 10); }
+    else { const sg = Math.sign(dsv) || 1, rv = (p.v - o.v) * sg; if (rv > 0) { const e = rv * 0.55; o.v += sg * e; const pv = Math.hypot(p.vx, p.vz) || 1, k = Math.max(0, 1 - e / pv); if (sg > 0) { p.vx *= k; p.vz *= k; } /* 被後車追撞時玩家不減速，繼續前進 */ if (rv > 1.5) { AUDIO.hit(Math.min(1, rv / 10)); GAME.shake = Math.min(1, rv / 10); }
       // 正面追撞前車、或被後車直接撞上：橫向重疊夠多才算「直接撞」；只擦到車角（超車切入）需很大速度差才算
       const direct = Math.abs(dd) < 1.2;
       if ((direct && rv > 4.5) || rv > 9) { registerHit(p, t.tx * sg, t.tz * sg, rv); registerHit(o, -t.tx * sg, -t.tz * sg, rv); } } o.s += sg * ox * 0.5; }

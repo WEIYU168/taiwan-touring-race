@@ -24,7 +24,10 @@ function planHazards() {
   const h1 = findStraight(0.3, used); used.push(h1);
   const h2 = findStraight(0.62, used); used.push(h2);
   const h3 = findStraight(0.88, used.concat([S_FINISH - 300])); // 第三顆：油罐車之後、離終點至少約 560 m（太靠近終點就沒用了），給最後一段修車況
-  HAZ.hearts = [{ s: h1, d: 0, got: false }, { s: h2, d: 0, got: false }, { s: h3, d: 0, got: false }]; // 路中央，兩條車道的車都吃得到
+  // 每個地點同時放兩顆，三種擺法擇一（由位置決定，所有玩家看到的一樣）：中＋左、中＋右、左＋右
+  const LN = { L: 3.0, C: 0, R: -3.0 }, PAIRS = [['C', 'L'], ['C', 'R'], ['L', 'R']];
+  HAZ.hearts = [];
+  [h1, h2, h3].forEach((hs, i) => { const pr = PAIRS[(Math.floor(hs / 7) + i) % 3]; for (const k of pr) HAZ.hearts.push({ s: hs, d: LN[k], got: false, grp: i }); });
   const hw1 = trackAt(s1, {}).hw, hw2 = trackAt(s2, {}).hw;
   // 防撞緩衝車：右側車道，車尾的緩衝墊朝向來車
   HAZ.truck = { s: s1, d: -(hw1 - 1.42), s0: s1 - 4.6, s1: s1 + 4.1, hw: 1.25 };
@@ -198,7 +201,7 @@ function stepHazards(c, dt) {
   for (const w of HAZ.warn) if (!w.done && c.s > w.s && c.s < w.s + 200) { w.done = true; toast(w.msg); }
   if (ROUTE.fog && !GAME.fogMsg && c.s > ROUTE.fog[0] - 60 && c.s < ROUTE.fog[1]) { GAME.fogMsg = true; toast('前方起霧，能見度降低，請減速慢行'); }
   for (const h of HAZ.hearts) {
-    if (h.got || Math.abs(c.s - h.s) > 2.6 || Math.abs(c.d - h.d) > 2.1) continue;
+    if (h.got || Math.abs(c.s - h.s) > 2.6 || Math.abs(c.d - h.d) > 1.6) continue;
     h.got = true; const had = c.dmg || 0;
     c.dmg = 0; c.dents = null; c.dentVer = (c.dentVer || 0) + 1;
     const t = trackAt(h.s, _hz), x = t.x + t.nx * h.d, z = t.z + t.nz * h.d;

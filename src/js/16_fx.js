@@ -42,6 +42,17 @@ function fxSpawn(x, y, z, vx, vy, vz, life, s0, s1, dark) {
 }
 const _fxo = [0, 0, 0];
 function fxEmitCar(c, dt) {
+  if (c.drift > 0.3 && c.slip > 0.25 && !c.ai) { // 甩尾輪胎白煙
+    c.dsAcc = (c.dsAcc || 0) + 40 * c.slip * dt;
+    if (c.dsAcc >= 1) {
+      carMatrix(c, _cm);
+      while (c.dsAcc >= 1) {
+        c.dsAcc -= 1;
+        M4.tp(_cm, (Math.random() < 0.5 ? -0.8 : 0.8), 0.15, 1.3, _fxo);
+        fxSpawn(_fxo[0], _fxo[1], _fxo[2], c.vx * 0.15 + (Math.random() - 0.5) * 0.8, 0.5 + Math.random() * 0.5, c.vz * 0.15 + (Math.random() - 0.5) * 0.8, 0.9 + Math.random() * 0.6, 0.3, 1.6, -0.6);
+      }
+    }
+  }
   const k = c.dmg || 0; let rate = 0, dark = 0, sz = 1, life = 2.4;
   if (c.broken) { rate = 30; dark = 0.8; sz = 1.25; life = 4; }
   else if (k >= 9) { rate = 16; dark = 0.55; sz = 1.1; life = 3; }
