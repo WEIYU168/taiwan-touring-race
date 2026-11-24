@@ -88,7 +88,7 @@
 
 ## 測試
 
-沒有自動化測試。瀏覽器 console 有 `window.G` 除錯介面：`G.loadRoute('kenting')`、`G.begin()`、`G.sim(n)` 推進 n 個物理步、`G.GAME.autoTest = 0.93` 讓玩家車自動沿賽車線跑（驗證物理能跑完全程）、`G.place(G.GAME.player, s, d)` 傳送、`G.hit(G.GAME.player, dirX, dirZ, 速度)` 模擬一次撞擊。
+沒有自動化測試。瀏覽器 console 的 `window.G` 除錯介面**只在 localhost 或網址加 `#debug` 時才存在**（正式網站上不暴露，見 SECURITY.md）：`G.loadRoute('kenting')`、`G.begin()`、`G.sim(n)` 推進 n 個物理步、`G.GAME.autoTest = 0.93` 讓玩家車自動沿賽車線跑（驗證物理能跑完全程）、`G.place(G.GAME.player, s, d)` 傳送、`G.hit(G.GAME.player, dirX, dirZ, 速度)` 模擬一次撞擊。
 
 ## 已知限制
 
@@ -98,6 +98,8 @@
 
 ## v1.5.0 車款／方向盤／輕碰
 - 車款：`src/js/12_car.js` 的 `CAR_MODELS`（6 款原創房車）。每款有外形參數（cabF/roofF/roofR/cabR、scale、wing、exhaust、opt）與 `phys`（pow 動力、grip 抓地、drag 風阻、stab 穩定、trac 驅動牽引上限、ev 電動）。新增車款＝在陣列加一筆，選單與展示間自動生成。
+- 資安（v1.8，詳見 `SECURITY.md`）：`worker/index.js` 與 `server.js` 共用同一套防護——WebSocket／`/api/*` 同源檢查（`Origin`／`Sec-Fetch-Site`）、單則訊息 ≤ 4 KB、每條連線 50 則／秒（連發 90）、轉送前所有數值經 `num()`／`int()` 夾範圍、名稱用 `cleanName()`（以字元編碼過濾，檔案裡不要放不可見字元或 ` ` 之類——曾因此語法錯誤）、單一 IP ≤ 24 人與請求頻率桶（429）、連線 10 秒內沒加入房間就斷線。`Lobby` 的預約 `pend` 是 `{t, ip}`，`Room` 回報帶 `ips`。前端把收到的資料當不可信（`netApply`／`room`／`load` 都驗證）。`build.js` 會算內嵌腳本的 sha256 寫進 CSP（頁面 meta＋`public/_headers`）；**新增外部資源（字型、腳本、API）要同步改 `build.js` 的 CSP**，否則會被擋。本機 `server.js` 已修正 `GET /%` 會當機的問題。
+- 手機／平板（v1.8）：viewport 已鎖縮放；`body{position:fixed}`＋`100dvh`（網址列伸縮不跳動）、`overscroll-behavior:none`、輸入欄位 16px（防 iPhone 自動放大）；觸控裝置選單有「全螢幕」按鈕（`#bFull`，iPhone 改顯示「加入主畫面」說明）；比賽中用 Screen Wake Lock 防螢幕休眠（`keepAwake()`）；直式窄螢幕把車況／時速（`#h-dash`）挪到按鈕下方、選單頂端顯示橫放提示。觸控操作：左半邊滑動轉向、右側踏板（預設自動油門）。
 - 方向盤：`src/js/13_game.js` 的 `STEER`（靈敏／中等／穩重：rate 轉向速度、dmax 最大角、exp 輸入曲線、px 觸控拖曳距離）。設定存在 localStorage `r139_steer`。
 - 車與車碰撞（`collideCars`，v1.5.2；v1.6 修改）：前後方向「直接撞」（橫向偏移 < 1.2 m）速度差 > 4.5 m/s 立刻計次；只擦到車角需速度差 > 9 m/s。側面擦碰（並排、超車）只推開，**要連續磨擦 2 秒才算一次**（見下一條）。
 - 側邊擦撞（v1.6）：貼著護欄、或和對手車並排磨擦，要**連續 2 秒**（`SCRAPE_SEC`）才算一次撞擊，繼續磨擦每滿 2 秒再算一次；中途離開超過 0.35 秒就重新計時（`c.scrapeT`／`scrapeGap`、`p.carScrapeT`／`carScrapeGap`，0.35 秒內的空檔仍累計時間）。重撞護欄（法向速度 > 2.2 m/s）、正面追撞或被後車撞上仍然立刻算。

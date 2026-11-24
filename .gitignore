@@ -1,3 +1,17 @@
 node_modules/
 *.log
 .claude/settings.local.json
+# 機密與本機設定：永遠不要提交
+.env
+.env.*
+.dev.vars
+.wrangler/
+*.pem
+*.key
+*.p12
+*.pfx
+# 系統垃圾檔
+.DS_Store
+Thumbs.db
+# 比對用的舊版建置
+public/old.html

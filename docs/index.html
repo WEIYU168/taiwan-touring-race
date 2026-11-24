@@ -2,7 +2,14 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-PN9ijZejZvA6D/bMMpjzQbvJLya8UM9BkneQWcaJxkk='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' ws: wss:; media-src 'self' blob: data:; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#101214">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="139 房車賽">
+<meta name="format-detection" content="telephone=no">
 <title>139 稜線房車賽</title>
 <link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;700;800&family=Noto+Sans+TC:wght@500;700;900&display=swap" rel="stylesheet">
 <style>
@@ -12,7 +19,9 @@
   color-scheme:dark;
 }
 *{box-sizing:border-box}
-html,body{height:100%;margin:0;background:var(--asphalt);color:var(--paper);font-family:var(--txt);overflow:hidden;-webkit-user-select:none;user-select:none;touch-action:none}
+html,body{height:100%;margin:0;background:var(--asphalt);color:var(--paper);font-family:var(--txt);overflow:hidden;-webkit-user-select:none;user-select:none;touch-action:none;overscroll-behavior:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;-webkit-text-size-adjust:100%}
+body{position:fixed;inset:0;width:100%} /* 手機：固定在可視範圍，網址列伸縮、下拉重新整理時畫面不會跳動或被拉動 */
+@supports (height:100dvh){html,body{height:100dvh}}
 #gl{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab}
 button{font:inherit;color:inherit;cursor:pointer}
 button:focus-visible{outline:3px solid var(--line);outline-offset:2px}
@@ -143,6 +152,13 @@ body.broken #rank{opacity:.6}
 .mprow{display:flex;gap:6px;flex-wrap:wrap}
 .mprow input{flex:1 1 90px;min-width:0;padding:9px 10px;border-radius:6px;border:1.5px solid rgba(242,241,234,.35);background:rgba(0,0,0,.35);color:var(--paper);font:inherit;font-size:15px;-webkit-user-select:text;user-select:text;touch-action:auto}
 .mprow button{padding:9px 16px;border-radius:6px;border:0;background:var(--paper);color:#111;font-weight:900}
+@media (pointer:coarse){.mprow input{font-size:16px}.mprow button{min-height:44px}} /* iPhone 輸入欄位字級小於 16px 會自動放大整個頁面；觸控按鈕至少 44px 高 */
+.tip-rotate{display:none;margin:0;padding:8px 10px;border-radius:6px;background:rgba(246,196,14,.14);border:1px solid rgba(246,196,14,.5);font-size:12.5px;line-height:1.6;color:#f3e6a8}
+@media (pointer:coarse) and (orientation:portrait) and (max-width:700px){.tip-rotate{display:block}}
+.fsbox{display:none;gap:8px;flex-direction:column}
+body.touch .fsbox{display:flex}
+#bFull{padding:10px 14px;border-radius:6px;border:1.5px solid rgba(242,241,234,.35);background:rgba(242,241,234,.08);font-weight:800;min-height:44px}
+#fsTip{margin:0;font-size:12px;line-height:1.6;color:var(--mute)}
 #mpList{list-style:none;margin:0;padding:0;display:grid;gap:3px;font-size:14px}#mpList li{display:flex;gap:8px}#mpList b{color:var(--line);font-size:12px;width:3em}
 #go:disabled{background:#6d6a55;color:#222;letter-spacing:.1em;font-size:16px}
 .cars{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
@@ -173,6 +189,7 @@ body:not(.showroom) #ccBack{display:none}
 body.hud-on #h-top{display:flex}
 #h-top button{width:38px;height:38px;border-radius:6px;background:rgba(10,14,12,.6);border:1.5px solid rgba(255,255,255,.4);font-size:13px;font-weight:900}
 @media (max-width:760px),(max-height:460px){ #remain{font-size:19px} #remainL{margin-top:4px;font-size:10px} #dmg span{display:none} #dmgBar i{width:6px;height:9px} #h-dash{bottom:auto;top:64px;right:12px} #spd{font-size:52px!important} #rpm i{width:6px;height:11px} #gear{width:32px;height:38px;font-size:28px} #h-mini{display:none!important} #h-top{right:10px;top:auto;bottom:calc(100% - 56px)} #h-sign{top:8px} #h-sign .k{font-size:18px} }
+@media (max-width:640px) and (orientation:portrait){ #h-dash{top:112px} } /* 手機直式：「視角／復位／暫停」在 top:64px，車況與時速往下挪，不要重疊 */
 @media (max-width:640px){ #h-sign .k,#secSub{display:none} #spd{font-size:60px} #h-pos #pos{font-size:44px} #h-pos #time{font-size:22px} h1{font-size:26px} #h-mini{display:none!important} #h-top{right:10px;top:64px} }
 @media (prefers-reduced-motion:reduce){ #bar i,#toast{transition:none} }
 </style>
@@ -199,6 +216,7 @@ body.hud-on #h-top{display:flex}
   <div class="brand"><span class="shield">139</span><div><h1><span id="rTitle">139 稜線</span> 房車賽</h1><small id="rSub"></small></div></div>
   <div class="grp"><span>路線</span><div class="seg" id="sRoute">
     <button data-v="r139" aria-pressed="false">139 稜線<small>山稜・茶園　9.6 km</small></button><button data-v="kenting" aria-pressed="true">墾丁 台26<small>珊瑚礁海岸　9 km</small></button><button data-v="dapeng" aria-pressed="false">大鵬灣<small>潟湖・賽車場　8 km</small></button></div></div>
+  <p class="tip-rotate">建議把手機橫放：畫面更寬、操作更順手（直式也可以玩）。</p>
   <p class="lede" id="rDesc"></p>
   <div class="grp"><span>模式</span><div class="seg" id="sMode">
     <button data-v="race" aria-pressed="true">房車賽<small>8 車同場競速</small></button><button data-v="time" aria-pressed="false">單車計時<small>挑戰個人最佳</small></button><button data-v="cruise" aria-pressed="false">環景巡航<small>自動駕駛・360° 環視</small></button><button data-v="online" aria-pressed="false">線上對戰<small>最多 8 人同場</small></button></div></div>
@@ -211,6 +229,7 @@ body.hud-on #h-top{display:flex}
   <div class="grp"><span>畫質（卡頓時會自動調降）</span><div class="seg" id="sQ"><button data-v="min" aria-pressed="false">省電</button><button data-v="low" aria-pressed="false">流暢</button><button data-v="med" aria-pressed="true">標準</button><button data-v="high" aria-pressed="false">精緻</button></div></div>
   <div class="grp"><span>車款（游標移到車款上可看介紹）</span><div class="cars" id="sCar"></div></div>
   <div class="grp"><span>車色</span><div class="sw" id="sLiv"></div></div>
+  <div class="fsbox"><button id="bFull" hidden>全螢幕（手機、平板建議）</button><p id="fsTip" hidden>iPhone：點 Safari 的「分享」→「加入主畫面」，從主畫面開啟就是全螢幕。</p></div>
   <button id="go">出　發</button>
   <p class="keys"><b>W</b><b>↑</b>油門　<b>S</b><b>↓</b>煞車／倒車　<b>A</b><b>D</b><b>←</b><b>→</b>轉向　<b>空白</b>手煞車<br>撞到第 9 次動力下降、第 10 次拋錨；吃到粉紅愛心可歸零<br><b>C</b>視角　<b>R</b>復位　<b>P</b>暫停　<b>M</b>靜音　<b>H</b>隱藏介面　拖曳畫面＝環景<br>手機／平板：左半邊左右滑動轉向，右側踏板煞車與油門</p>
   <ol class="route" id="route"></ol>
@@ -4226,6 +4245,14 @@ function mkCar(i, ai) { return { idx: i, ai, x: 0, y: 0, z: 0, yaw: 0, pitch: 0,
 function placeOnTrack(c, s, d) {
   const t = trackAt(s, {}); c.s = s; c.d = d; c.x = t.x + t.nx * d; c.z = t.z + t.nz * d; c.y = t.y - t.bank * d; c.yaw = t.th; c.v = 0; c.vx = 0; c.vz = 0; c.r = 0; c.pitch = Math.atan(t.grade); c.roll = 0; c.steer = 0; c.gear = 1; c.finished = false;
 }
+// 手機／平板比賽中不讓螢幕自動變暗休眠（Screen Wake Lock；不支援的瀏覽器會直接略過）
+let _wakeLock = null;
+async function keepAwake(on) {
+  try {
+    if (on) { if (!_wakeLock && navigator.wakeLock) { _wakeLock = await navigator.wakeLock.request('screen'); _wakeLock.addEventListener('release', () => { _wakeLock = null; }); } }
+    else if (_wakeLock) { const w = _wakeLock; _wakeLock = null; await w.release(); }
+  } catch (e) { _wakeLock = null; }
+}
 function startSession(mode) {
   const online = mode === 'online'; if (online) mode = 'race'; GAME.online = online;
   GAME.mode = mode; GAME.cars = []; GAME.time = 0;
@@ -4260,6 +4287,7 @@ function startSession(mode) {
   GAME.show = null; document.body.classList.remove('showroom'); if (typeof hideCarCard === 'function') hideCarCard(true);
   GAME.camYaw = 0; GAME.camPitch = 0; GAME.camDist = 1; GAME.camS = null; GAME.lastBeep = 9; GAME.split = 0; if (typeof fxClear === 'function') fxClear(); if (typeof resetHazards === 'function') resetHazards();
   REN.forceFar = true;
+  if (REN.touch) keepAwake(GAME.state === 'count' || GAME.state === 'racing'); // 比賽中螢幕不休眠；回選單／環景展示就放開
 }
 
 // ── 玩家車輛動力學（單軌模型 + 魔術公式輪胎）
@@ -4489,7 +4517,7 @@ function steerHint() {
   if (steerHintN >= 3 && now - steerHintAt < 25) return;
   steerHintN++; steerHintAt = now;
   const cur = $('toast').textContent, pre = toastT > 0 && cur.startsWith('撞擊') ? cur + '　' : '';
-  toast(pre + (INP.touch && INP.touch.active ? '提示：方向盤小幅輕推、分段修正，比一次推到底更不容易撞到護欄' : '提示：方向鍵「輕點」左右、分段修正，比長按更不容易撞到護欄'), 3.2);
+  toast(pre + (REN.touch ? '提示：左手在左半邊「輕輕」滑動轉向、分段修正，比一次滑到底更不容易撞到護欄' : '提示：方向鍵「輕點」左右、分段修正，比長按更不容易撞到護欄'), 3.2);
 }
 
 // ── 鏡頭
@@ -4898,7 +4926,11 @@ async function netConnect(retry = 0) {
   try { localStorage.setItem('r139_name', name); } catch (e) { }
   netStatus(room ? '連線中…' : '自動配對中…');
   if (!room) {
-    try { const r = await fetch('/api/match', { cache: 'no-store' }); if (r.ok) { const j = await r.json(); if (j.full) { netStatus(j.msg || '目前線上人數已滿（上限 96 人），請稍後再試。'); return; } room = j.room; quick = true; } } catch (e) { }
+    try {
+      const r = await fetch('/api/match', { cache: 'no-store' });
+      if (r.status === 429 || r.status === 403) { let j = {}; try { j = await r.json(); } catch (e) { } netStatus(j.msg || '操作太頻繁，請稍後再試。'); return; } // 被伺服器限流／拒絕：不要自己亂開房間繞過
+      if (r.ok) { const j = await r.json(); if (j.full) { netStatus(j.msg || '目前線上人數已滿（上限 96 人），請稍後再試。'); return; } if (typeof j.room === 'string' && /^[A-Z0-9]{1,6}$/.test(j.room)) { room = j.room; quick = true; } }
+    } catch (e) { }
     if (!room) room = Array.from({ length: 4 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.random() * 32 | 0]).join('');
   }
   let ws; try { ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws?room=' + room + (quick ? '&q=1' : '')); } catch (e) { netStatus('這個頁面無法連到對戰伺服器。'); return; }
@@ -4917,7 +4949,8 @@ async function netConnect(retry = 0) {
 function netHandle(m) {
   if (m.t === 'room') {
     const wasHost = NET.id !== null && NET.host === NET.id;
-    NET.id = m.you; NET.host = m.host; NET.room = m.room; NET.players = m.players; if (m.route) NET.route = m.route; $('mpRoom').value = m.room; netRender();
+    NET.id = m.you; NET.host = m.host; NET.room = m.room; NET.players = (Array.isArray(m.players) ? m.players : []).slice(0, 8).map(p => ({ id: p.id | 0, name: String(p && p.name != null ? p.name : '車手').slice(0, 16), slot: p.slot | 0, liv: (p.liv | 0) & 7, car: Math.max(0, Math.min(5, p.car | 0)) })); // 收到的資料一律當成不可信：只留需要的欄位、限制型別與長度
+    if (typeof m.route === 'string' && ROUTES[m.route]) NET.route = m.route; $('mpRoom').value = m.room; netRender();
     // 當上房主（或剛連線就是房主）而且之前選過賽道：把選擇告訴伺服器，自動出發也會用它
     if (NET.host === NET.id && !wasHost && NET.routeChosen && ROUTE && NET.route !== ROUTE.key) netSend({ t: 'route', route: ROUTE.key });
     if (GAME.online) {
@@ -4926,7 +4959,8 @@ function netHandle(m) {
       if (NET.host === NET.id) for (const c of GAME.cars) if (c.bot && c.remote) { c.remote = false; c.ai = true; c.vcap = 99; }
     }
   } else if (m.t === 'load') {
-    NET.bots = m.bots | 0;
+    if (typeof m.route !== 'string' || !ROUTES[m.route] || typeof m.tod !== 'string' || !TOD[m.tod]) return; // 不認得的賽道／時段就忽略，避免載入失敗卡死
+    NET.bots = Math.max(0, Math.min(7, m.bots | 0));
     netStatus('房主已出發，載入路線中…' + (NET.bots ? '（' + NET.bots + ' 台電腦車補位）' : ''));
     (async () => { if (!ROUTE || ROUTE.key !== m.route) await loadRoute(m.route); GAME.tod = m.tod; setTimeOfDay(m.tod); setSeg('sTod', m.tod); REN.forceFar = true; setSeg('sMode', 'online'); GAME.selMode = 'online'; document.body.classList.add('mp'); netRender(); netSend({ t: 'ready' }); })().catch(e => netStatus('路線載入失敗：' + e.message));
   } else if (m.t === 'go') {
@@ -4938,17 +4972,21 @@ function netHandle(m) {
   } else if (m.t === 'b') { // 房主模擬的電腦車：[id, s, d, v, r, st, brake, k, bk]
     for (const e of m.b || []) { const c = GAME.cars.find(c => c.netId === e[0]); if (c && c.remote) netApply(c, { s: e[1], d: e[2], v: e[3], r: e[4], st: e[5], b: e[6], k: e[7], bk: e[8] }); }
   } else if (m.t === 'fin') {
-    NET.fins[m.id] = m.time; const c = GAME.cars.find(c => c.netId === m.id); if (c && m.time >= 0) { c.finished = true; c.ftime = m.time; } netResults();
-  } else if (m.t === 'route') { NET.route = m.route; netRender();
+    const ft = +m.time; if (!isFinite(ft)) return;
+    NET.fins[m.id] = ft; const c = GAME.cars.find(c => c.netId === m.id); if (c && ft >= 0) { c.finished = true; c.ftime = ft; } netResults();
+  } else if (m.t === 'route') { if (typeof m.route === 'string' && ROUTES[m.route]) { NET.route = m.route; netRender(); }
   } else if (m.t === 'auto') {
     if (m.sec > 0) netStatus('已湊滿 8 人，' + m.sec + ' 秒後自動出發（房主也可以提前按出發）。'); else netRender();
   } else if (m.t === 'err') netStatus(m.msg);
 }
+// 別人送來的車輛狀態一律當成不可信：非數字／超大數字會被換成安全值（伺服器也會先擋一次，這裡是第二道防線）
+const nfin = (v, lo, hi, d = 0) => (typeof v === 'number' && isFinite(v)) ? Math.min(hi, Math.max(lo, v)) : d;
 function netApply(c, m) {
-  c.ns = m.s; c.nd = m.d; c.nv = m.v; c.nrel = m.r; c.nt = performance.now(); c.steer = m.st; c.brakeLight = m.b;
-  c.nro = +m.ro || 0; c.nay = +m.ay || 0;
-  c.dmg = m.k | 0; if (m.h && m.h.length === 40) c.dents = Float32Array.from(m.h); if (m.bk && !c.broken) { c.broken = true; c.brokenT = 0; }
-  if (c.fresh) { c.s = m.s; c.d = m.d; c.v = m.v; c.fresh = false; }
+  const s = nfin(m.s, 0, TR.len || 30000), d = nfin(m.d, -40, 40), v = nfin(m.v, -80, 120);
+  c.ns = s; c.nd = d; c.nv = v; c.nrel = nfin(m.r, -7, 7); c.nt = performance.now(); c.steer = nfin(m.st, -1, 1); c.brakeLight = m.b ? 1 : 0;
+  c.nro = nfin(m.ro, -60, 60); c.nay = nfin(m.ay, -30, 60);
+  c.dmg = Math.max(0, Math.min(10, m.k | 0)); if (Array.isArray(m.h) && m.h.length === 40) c.dents = Float32Array.from(m.h, x => nfin(x, -6, 6)); if (m.bk && !c.broken) { c.broken = true; c.brokenT = 0; }
+  if (c.fresh) { c.s = s; c.d = d; c.v = v; c.fresh = false; }
 }
 function netResults() {
   const T = id => NET.fins[id] < 0 ? 1e9 : NET.fins[id];
@@ -5473,7 +5511,8 @@ async function boot() {
     window.READY = true;
   }
   requestAnimationFrame(frame);
-  window.G = { HAZ, launch: launchCar, spinOil: startSpin, hit: registerHit, FX, PROPS, sim: (n, dt) => { for (let i = 0; i < n; i++) stepGame(dt || 1 / 60); }, GAME, REN, CAM, TR, VEG, INP, SKY, begin: beginRace, place: placeOnTrack, tod: setTimeOfDay, quality: k => { setQuality(k); }, NET, netHandle, loadRoute, route: () => ROUTE, groundY };
+  // 除錯介面（可傳送車子、改物理等）只在本機開發（localhost）或網址加 #debug 時開放，正式網站上不暴露
+  if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) || location.hash === '#debug') window.G = { HAZ, launch: launchCar, spinOil: startSpin, hit: registerHit, FX, PROPS, sim: (n, dt) => { for (let i = 0; i < n; i++) stepGame(dt || 1 / 60); }, GAME, REN, CAM, TR, VEG, INP, SKY, begin: beginRace, place: placeOnTrack, tod: setTimeOfDay, quality: k => { setQuality(k); }, NET, netHandle, loadRoute, route: () => ROUTE, groundY };
 }
 // 車款介紹卡：pinned＝展示間停妥後顯示（滑鼠移開不會消失）
 const CARD = { i: -1, pinned: false };
@@ -5551,7 +5590,11 @@ function setupUI(canvas, qk) {
   const sup = e => { if (e.pointerId !== sid) return; sid = -1; INP.touch.active = 0; INP.touch.sx = 0; knob.classList.remove('on'); setK(0); };
   sz.addEventListener('pointerup', sup); sz.addEventListener('pointercancel', sup);
   document.addEventListener('contextmenu', e => { if (REN.touch) e.preventDefault(); });
-  document.addEventListener('visibilitychange', () => { if (document.hidden && GAME.state === 'racing' && !GAME.paused && GAME.mode !== 'cruise') togglePause(); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden && GAME.state === 'racing' && !GAME.paused && GAME.mode !== 'cruise') togglePause(); else if (!document.hidden && REN.touch && (GAME.state === 'racing' || GAME.state === 'count')) keepAwake(true); }); // 切回來時重新要求螢幕不休眠（切走時系統會自動放開）
+  // 全螢幕：Android／iPad 用全螢幕 API（並嘗試鎖橫向）；iPhone 的 Safari 沒有這個功能，改顯示「加入主畫面」說明
+  { const de = document.documentElement, rf = de.requestFullscreen || de.webkitRequestFullscreen, bf = $('bFull'), ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (rf) { bf.hidden = false; bf.onclick = async () => { try { if (document.fullscreenElement || document.webkitFullscreenElement) (document.exitFullscreen || document.webkitExitFullscreen).call(document); else { await rf.call(de); try { await screen.orientation.lock('landscape'); } catch (e) { } } } catch (e) { } }; }
+    if (ios && !(rf && !/iPhone/.test(navigator.userAgent))) $('fsTip').hidden = false; }
 }
 window.addEventListener('error', e => console.error('ERR', e.message, e.lineno));
 boot().catch(e => { console.error('BOOT FAIL', e && e.stack || e); const l = $('loadTxt'); if (l) l.textContent = '載入失敗：' + (e && e.message || e); });

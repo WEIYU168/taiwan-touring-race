@@ -13,6 +13,14 @@ function mkCar(i, ai) { return { idx: i, ai, x: 0, y: 0, z: 0, yaw: 0, pitch: 0,
 function placeOnTrack(c, s, d) {
   const t = trackAt(s, {}); c.s = s; c.d = d; c.x = t.x + t.nx * d; c.z = t.z + t.nz * d; c.y = t.y - t.bank * d; c.yaw = t.th; c.v = 0; c.vx = 0; c.vz = 0; c.r = 0; c.pitch = Math.atan(t.grade); c.roll = 0; c.steer = 0; c.gear = 1; c.finished = false;
 }
+// 手機／平板比賽中不讓螢幕自動變暗休眠（Screen Wake Lock；不支援的瀏覽器會直接略過）
+let _wakeLock = null;
+async function keepAwake(on) {
+  try {
+    if (on) { if (!_wakeLock && navigator.wakeLock) { _wakeLock = await navigator.wakeLock.request('screen'); _wakeLock.addEventListener('release', () => { _wakeLock = null; }); } }
+    else if (_wakeLock) { const w = _wakeLock; _wakeLock = null; await w.release(); }
+  } catch (e) { _wakeLock = null; }
+}
 function startSession(mode) {
   const online = mode === 'online'; if (online) mode = 'race'; GAME.online = online;
   GAME.mode = mode; GAME.cars = []; GAME.time = 0;
@@ -47,6 +55,7 @@ function startSession(mode) {
   GAME.show = null; document.body.classList.remove('showroom'); if (typeof hideCarCard === 'function') hideCarCard(true);
   GAME.camYaw = 0; GAME.camPitch = 0; GAME.camDist = 1; GAME.camS = null; GAME.lastBeep = 9; GAME.split = 0; if (typeof fxClear === 'function') fxClear(); if (typeof resetHazards === 'function') resetHazards();
   REN.forceFar = true;
+  if (REN.touch) keepAwake(GAME.state === 'count' || GAME.state === 'racing'); // 比賽中螢幕不休眠；回選單／環景展示就放開
 }
 
 // ── 玩家車輛動力學（單軌模型 + 魔術公式輪胎）
@@ -276,7 +285,7 @@ function steerHint() {
   if (steerHintN >= 3 && now - steerHintAt < 25) return;
   steerHintN++; steerHintAt = now;
   const cur = $('toast').textContent, pre = toastT > 0 && cur.startsWith('撞擊') ? cur + '　' : '';
-  toast(pre + (INP.touch && INP.touch.active ? '提示：方向盤小幅輕推、分段修正，比一次推到底更不容易撞到護欄' : '提示：方向鍵「輕點」左右、分段修正，比長按更不容易撞到護欄'), 3.2);
+  toast(pre + (REN.touch ? '提示：左手在左半邊「輕輕」滑動轉向、分段修正，比一次滑到底更不容易撞到護欄' : '提示：方向鍵「輕點」左右、分段修正，比長按更不容易撞到護欄'), 3.2);
 }
 
 // ── 鏡頭

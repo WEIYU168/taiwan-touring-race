@@ -63,7 +63,8 @@ async function boot() {
     window.READY = true;
   }
   requestAnimationFrame(frame);
-  window.G = { HAZ, launch: launchCar, spinOil: startSpin, hit: registerHit, FX, PROPS, sim: (n, dt) => { for (let i = 0; i < n; i++) stepGame(dt || 1 / 60); }, GAME, REN, CAM, TR, VEG, INP, SKY, begin: beginRace, place: placeOnTrack, tod: setTimeOfDay, quality: k => { setQuality(k); }, NET, netHandle, loadRoute, route: () => ROUTE, groundY };
+  // 除錯介面（可傳送車子、改物理等）只在本機開發（localhost）或網址加 #debug 時開放，正式網站上不暴露
+  if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) || location.hash === '#debug') window.G = { HAZ, launch: launchCar, spinOil: startSpin, hit: registerHit, FX, PROPS, sim: (n, dt) => { for (let i = 0; i < n; i++) stepGame(dt || 1 / 60); }, GAME, REN, CAM, TR, VEG, INP, SKY, begin: beginRace, place: placeOnTrack, tod: setTimeOfDay, quality: k => { setQuality(k); }, NET, netHandle, loadRoute, route: () => ROUTE, groundY };
 }
 // 車款介紹卡：pinned＝展示間停妥後顯示（滑鼠移開不會消失）
 const CARD = { i: -1, pinned: false };
@@ -141,7 +142,11 @@ function setupUI(canvas, qk) {
   const sup = e => { if (e.pointerId !== sid) return; sid = -1; INP.touch.active = 0; INP.touch.sx = 0; knob.classList.remove('on'); setK(0); };
   sz.addEventListener('pointerup', sup); sz.addEventListener('pointercancel', sup);
   document.addEventListener('contextmenu', e => { if (REN.touch) e.preventDefault(); });
-  document.addEventListener('visibilitychange', () => { if (document.hidden && GAME.state === 'racing' && !GAME.paused && GAME.mode !== 'cruise') togglePause(); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden && GAME.state === 'racing' && !GAME.paused && GAME.mode !== 'cruise') togglePause(); else if (!document.hidden && REN.touch && (GAME.state === 'racing' || GAME.state === 'count')) keepAwake(true); }); // 切回來時重新要求螢幕不休眠（切走時系統會自動放開）
+  // 全螢幕：Android／iPad 用全螢幕 API（並嘗試鎖橫向）；iPhone 的 Safari 沒有這個功能，改顯示「加入主畫面」說明
+  { const de = document.documentElement, rf = de.requestFullscreen || de.webkitRequestFullscreen, bf = $('bFull'), ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (rf) { bf.hidden = false; bf.onclick = async () => { try { if (document.fullscreenElement || document.webkitFullscreenElement) (document.exitFullscreen || document.webkitExitFullscreen).call(document); else { await rf.call(de); try { await screen.orientation.lock('landscape'); } catch (e) { } } } catch (e) { } }; }
+    if (ios && !(rf && !/iPhone/.test(navigator.userAgent))) $('fsTip').hidden = false; }
 }
 window.addEventListener('error', e => console.error('ERR', e.message, e.lineno));
 boot().catch(e => { console.error('BOOT FAIL', e && e.stack || e); const l = $('loadTxt'); if (l) l.textContent = '載入失敗：' + (e && e.message || e); });

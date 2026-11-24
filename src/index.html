@@ -2,7 +2,13 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#101214">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="139 房車賽">
+<meta name="format-detection" content="telephone=no">
 <title>139 稜線房車賽</title>
 <link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;700;800&family=Noto+Sans+TC:wght@500;700;900&display=swap" rel="stylesheet">
 <style>
@@ -12,7 +18,9 @@
   color-scheme:dark;
 }
 *{box-sizing:border-box}
-html,body{height:100%;margin:0;background:var(--asphalt);color:var(--paper);font-family:var(--txt);overflow:hidden;-webkit-user-select:none;user-select:none;touch-action:none}
+html,body{height:100%;margin:0;background:var(--asphalt);color:var(--paper);font-family:var(--txt);overflow:hidden;-webkit-user-select:none;user-select:none;touch-action:none;overscroll-behavior:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;-webkit-text-size-adjust:100%}
+body{position:fixed;inset:0;width:100%} /* 手機：固定在可視範圍，網址列伸縮、下拉重新整理時畫面不會跳動或被拉動 */
+@supports (height:100dvh){html,body{height:100dvh}}
 #gl{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab}
 button{font:inherit;color:inherit;cursor:pointer}
 button:focus-visible{outline:3px solid var(--line);outline-offset:2px}
@@ -143,6 +151,13 @@ body.broken #rank{opacity:.6}
 .mprow{display:flex;gap:6px;flex-wrap:wrap}
 .mprow input{flex:1 1 90px;min-width:0;padding:9px 10px;border-radius:6px;border:1.5px solid rgba(242,241,234,.35);background:rgba(0,0,0,.35);color:var(--paper);font:inherit;font-size:15px;-webkit-user-select:text;user-select:text;touch-action:auto}
 .mprow button{padding:9px 16px;border-radius:6px;border:0;background:var(--paper);color:#111;font-weight:900}
+@media (pointer:coarse){.mprow input{font-size:16px}.mprow button{min-height:44px}} /* iPhone 輸入欄位字級小於 16px 會自動放大整個頁面；觸控按鈕至少 44px 高 */
+.tip-rotate{display:none;margin:0;padding:8px 10px;border-radius:6px;background:rgba(246,196,14,.14);border:1px solid rgba(246,196,14,.5);font-size:12.5px;line-height:1.6;color:#f3e6a8}
+@media (pointer:coarse) and (orientation:portrait) and (max-width:700px){.tip-rotate{display:block}}
+.fsbox{display:none;gap:8px;flex-direction:column}
+body.touch .fsbox{display:flex}
+#bFull{padding:10px 14px;border-radius:6px;border:1.5px solid rgba(242,241,234,.35);background:rgba(242,241,234,.08);font-weight:800;min-height:44px}
+#fsTip{margin:0;font-size:12px;line-height:1.6;color:var(--mute)}
 #mpList{list-style:none;margin:0;padding:0;display:grid;gap:3px;font-size:14px}#mpList li{display:flex;gap:8px}#mpList b{color:var(--line);font-size:12px;width:3em}
 #go:disabled{background:#6d6a55;color:#222;letter-spacing:.1em;font-size:16px}
 .cars{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
@@ -173,6 +188,7 @@ body:not(.showroom) #ccBack{display:none}
 body.hud-on #h-top{display:flex}
 #h-top button{width:38px;height:38px;border-radius:6px;background:rgba(10,14,12,.6);border:1.5px solid rgba(255,255,255,.4);font-size:13px;font-weight:900}
 @media (max-width:760px),(max-height:460px){ #remain{font-size:19px} #remainL{margin-top:4px;font-size:10px} #dmg span{display:none} #dmgBar i{width:6px;height:9px} #h-dash{bottom:auto;top:64px;right:12px} #spd{font-size:52px!important} #rpm i{width:6px;height:11px} #gear{width:32px;height:38px;font-size:28px} #h-mini{display:none!important} #h-top{right:10px;top:auto;bottom:calc(100% - 56px)} #h-sign{top:8px} #h-sign .k{font-size:18px} }
+@media (max-width:640px) and (orientation:portrait){ #h-dash{top:112px} } /* 手機直式：「視角／復位／暫停」在 top:64px，車況與時速往下挪，不要重疊 */
 @media (max-width:640px){ #h-sign .k,#secSub{display:none} #spd{font-size:60px} #h-pos #pos{font-size:44px} #h-pos #time{font-size:22px} h1{font-size:26px} #h-mini{display:none!important} #h-top{right:10px;top:64px} }
 @media (prefers-reduced-motion:reduce){ #bar i,#toast{transition:none} }
 </style>
@@ -199,6 +215,7 @@ body.hud-on #h-top{display:flex}
   <div class="brand"><span class="shield">139</span><div><h1><span id="rTitle">139 稜線</span> 房車賽</h1><small id="rSub"></small></div></div>
   <div class="grp"><span>路線</span><div class="seg" id="sRoute">
     <button data-v="r139" aria-pressed="false">139 稜線<small>山稜・茶園　9.6 km</small></button><button data-v="kenting" aria-pressed="true">墾丁 台26<small>珊瑚礁海岸　9 km</small></button><button data-v="dapeng" aria-pressed="false">大鵬灣<small>潟湖・賽車場　8 km</small></button></div></div>
+  <p class="tip-rotate">建議把手機橫放：畫面更寬、操作更順手（直式也可以玩）。</p>
   <p class="lede" id="rDesc"></p>
   <div class="grp"><span>模式</span><div class="seg" id="sMode">
     <button data-v="race" aria-pressed="true">房車賽<small>8 車同場競速</small></button><button data-v="time" aria-pressed="false">單車計時<small>挑戰個人最佳</small></button><button data-v="cruise" aria-pressed="false">環景巡航<small>自動駕駛・360° 環視</small></button><button data-v="online" aria-pressed="false">線上對戰<small>最多 8 人同場</small></button></div></div>
@@ -211,6 +228,7 @@ body.hud-on #h-top{display:flex}
   <div class="grp"><span>畫質（卡頓時會自動調降）</span><div class="seg" id="sQ"><button data-v="min" aria-pressed="false">省電</button><button data-v="low" aria-pressed="false">流暢</button><button data-v="med" aria-pressed="true">標準</button><button data-v="high" aria-pressed="false">精緻</button></div></div>
   <div class="grp"><span>車款（游標移到車款上可看介紹）</span><div class="cars" id="sCar"></div></div>
   <div class="grp"><span>車色</span><div class="sw" id="sLiv"></div></div>
+  <div class="fsbox"><button id="bFull" hidden>全螢幕（手機、平板建議）</button><p id="fsTip" hidden>iPhone：點 Safari 的「分享」→「加入主畫面」，從主畫面開啟就是全螢幕。</p></div>
   <button id="go">出　發</button>
   <p class="keys"><b>W</b><b>↑</b>油門　<b>S</b><b>↓</b>煞車／倒車　<b>A</b><b>D</b><b>←</b><b>→</b>轉向　<b>空白</b>手煞車<br>撞到第 9 次動力下降、第 10 次拋錨；吃到粉紅愛心可歸零<br><b>C</b>視角　<b>R</b>復位　<b>P</b>暫停　<b>M</b>靜音　<b>H</b>隱藏介面　拖曳畫面＝環景<br>手機／平板：左半邊左右滑動轉向，右側踏板煞車與油門</p>
   <ol class="route" id="route"></ol>

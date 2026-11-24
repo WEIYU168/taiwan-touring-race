@@ -31,7 +31,11 @@ async function netConnect(retry = 0) {
   try { localStorage.setItem('r139_name', name); } catch (e) { }
   netStatus(room ? '連線中…' : '自動配對中…');
   if (!room) {
-    try { const r = await fetch('/api/match', { cache: 'no-store' }); if (r.ok) { const j = await r.json(); if (j.full) { netStatus(j.msg || '目前線上人數已滿（上限 96 人），請稍後再試。'); return; } room = j.room; quick = true; } } catch (e) { }
+    try {
+      const r = await fetch('/api/match', { cache: 'no-store' });
+      if (r.status === 429 || r.status === 403) { let j = {}; try { j = await r.json(); } catch (e) { } netStatus(j.msg || '操作太頻繁，請稍後再試。'); return; } // 被伺服器限流／拒絕：不要自己亂開房間繞過
+      if (r.ok) { const j = await r.json(); if (j.full) { netStatus(j.msg || '目前線上人數已滿（上限 96 人），請稍後再試。'); return; } if (typeof j.room === 'string' && /^[A-Z0-9]{1,6}$/.test(j.room)) { room = j.room; quick = true; } }
+    } catch (e) { }
     if (!room) room = Array.from({ length: 4 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.random() * 32 | 0]).join('');
   }
   let ws; try { ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws?room=' + room + (quick ? '&q=1' : '')); } catch (e) { netStatus('這個頁面無法連到對戰伺服器。'); return; }
@@ -50,7 +54,8 @@ async function netConnect(retry = 0) {
 function netHandle(m) {
   if (m.t === 'room') {
     const wasHost = NET.id !== null && NET.host === NET.id;
-    NET.id = m.you; NET.host = m.host; NET.room = m.room; NET.players = m.players; if (m.route) NET.route = m.route; $('mpRoom').value = m.room; netRender();
+    NET.id = m.you; NET.host = m.host; NET.room = m.room; NET.players = (Array.isArray(m.players) ? m.players : []).slice(0, 8).map(p => ({ id: p.id | 0, name: String(p && p.name != null ? p.name : '車手').slice(0, 16), slot: p.slot | 0, liv: (p.liv | 0) & 7, car: Math.max(0, Math.min(5, p.car | 0)) })); // 收到的資料一律當成不可信：只留需要的欄位、限制型別與長度
+    if (typeof m.route === 'string' && ROUTES[m.route]) NET.route = m.route; $('mpRoom').value = m.room; netRender();
     // 當上房主（或剛連線就是房主）而且之前選過賽道：把選擇告訴伺服器，自動出發也會用它
     if (NET.host === NET.id && !wasHost && NET.routeChosen && ROUTE && NET.route !== ROUTE.key) netSend({ t: 'route', route: ROUTE.key });
     if (GAME.online) {
@@ -59,7 +64,8 @@ function netHandle(m) {
       if (NET.host === NET.id) for (const c of GAME.cars) if (c.bot && c.remote) { c.remote = false; c.ai = true; c.vcap = 99; }
     }
   } else if (m.t === 'load') {
-    NET.bots = m.bots | 0;
+    if (typeof m.route !== 'string' || !ROUTES[m.route] || typeof m.tod !== 'string' || !TOD[m.tod]) return; // 不認得的賽道／時段就忽略，避免載入失敗卡死
+    NET.bots = Math.max(0, Math.min(7, m.bots | 0));
     netStatus('房主已出發，載入路線中…' + (NET.bots ? '（' + NET.bots + ' 台電腦車補位）' : ''));
     (async () => { if (!ROUTE || ROUTE.key !== m.route) await loadRoute(m.route); GAME.tod = m.tod; setTimeOfDay(m.tod); setSeg('sTod', m.tod); REN.forceFar = true; setSeg('sMode', 'online'); GAME.selMode = 'online'; document.body.classList.add('mp'); netRender(); netSend({ t: 'ready' }); })().catch(e => netStatus('路線載入失敗：' + e.message));
   } else if (m.t === 'go') {
@@ -71,17 +77,21 @@ function netHandle(m) {
   } else if (m.t === 'b') { // 房主模擬的電腦車：[id, s, d, v, r, st, brake, k, bk]
     for (const e of m.b || []) { const c = GAME.cars.find(c => c.netId === e[0]); if (c && c.remote) netApply(c, { s: e[1], d: e[2], v: e[3], r: e[4], st: e[5], b: e[6], k: e[7], bk: e[8] }); }
   } else if (m.t === 'fin') {
-    NET.fins[m.id] = m.time; const c = GAME.cars.find(c => c.netId === m.id); if (c && m.time >= 0) { c.finished = true; c.ftime = m.time; } netResults();
-  } else if (m.t === 'route') { NET.route = m.route; netRender();
+    const ft = +m.time; if (!isFinite(ft)) return;
+    NET.fins[m.id] = ft; const c = GAME.cars.find(c => c.netId === m.id); if (c && ft >= 0) { c.finished = true; c.ftime = ft; } netResults();
+  } else if (m.t === 'route') { if (typeof m.route === 'string' && ROUTES[m.route]) { NET.route = m.route; netRender(); }
   } else if (m.t === 'auto') {
     if (m.sec > 0) netStatus('已湊滿 8 人，' + m.sec + ' 秒後自動出發（房主也可以提前按出發）。'); else netRender();
   } else if (m.t === 'err') netStatus(m.msg);
 }
+// 別人送來的車輛狀態一律當成不可信：非數字／超大數字會被換成安全值（伺服器也會先擋一次，這裡是第二道防線）
+const nfin = (v, lo, hi, d = 0) => (typeof v === 'number' && isFinite(v)) ? Math.min(hi, Math.max(lo, v)) : d;
 function netApply(c, m) {
-  c.ns = m.s; c.nd = m.d; c.nv = m.v; c.nrel = m.r; c.nt = performance.now(); c.steer = m.st; c.brakeLight = m.b;
-  c.nro = +m.ro || 0; c.nay = +m.ay || 0;
-  c.dmg = m.k | 0; if (m.h && m.h.length === 40) c.dents = Float32Array.from(m.h); if (m.bk && !c.broken) { c.broken = true; c.brokenT = 0; }
-  if (c.fresh) { c.s = m.s; c.d = m.d; c.v = m.v; c.fresh = false; }
+  const s = nfin(m.s, 0, TR.len || 30000), d = nfin(m.d, -40, 40), v = nfin(m.v, -80, 120);
+  c.ns = s; c.nd = d; c.nv = v; c.nrel = nfin(m.r, -7, 7); c.nt = performance.now(); c.steer = nfin(m.st, -1, 1); c.brakeLight = m.b ? 1 : 0;
+  c.nro = nfin(m.ro, -60, 60); c.nay = nfin(m.ay, -30, 60);
+  c.dmg = Math.max(0, Math.min(10, m.k | 0)); if (Array.isArray(m.h) && m.h.length === 40) c.dents = Float32Array.from(m.h, x => nfin(x, -6, 6)); if (m.bk && !c.broken) { c.broken = true; c.brokenT = 0; }
+  if (c.fresh) { c.s = s; c.d = d; c.v = v; c.fresh = false; }
 }
 function netResults() {
   const T = id => NET.fins[id] < 0 ? 1e9 : NET.fins[id];
