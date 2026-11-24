@@ -1,4 +1,4 @@
-# CLAUDE.md — 台灣房車賽（給 Claude Code）
+﻿# CLAUDE.md — 台灣房車賽（給 Claude Code）
 
 在專案根目錄執行 Claude Code。先讀完本檔與下方的專案指引再改程式。
 
@@ -107,7 +107,6 @@
 - 預設時段改為「晴日」`day`（`GAME.tod`、`99_main.js` 的 `setTimeOfDay`、`#sTod` 按鈕、`server.js` 預設值）。
 - 預設賽道（v1.7）：每次開啟都從**墾丁**開始（不再讀 localStorage 的上次路線）。連線對戰：房主沒選賽道＝墾丁——切到「線上對戰」時若這次還沒選過賽道（`NET.routeChosen`），會自動載入墾丁；房主選賽道會送 `{t:'route'}` 給伺服器，`Room.route`（預設 `'kenting'`）記住並通知全房（`room`／`route` 訊息帶 `route`），開賽與滿 8 人自動出發都用它；非房主按賽道按鈕會被擋（「只有房主可以選擇賽道」），開賽時才跟著房主載入。
 - 八卦山 139 縮短 1/5（v1.7，12 km → 約 9.6 km）：`14_routes.js` 的 `R139_F = 0.8`、`m139()`；前 120 m 起跑直線不動，其餘沿路距離乘 0.8（`pieces` 長度縮短、彎角不變 → 路形是縮小的相似形，最小彎道半徑約 26 m；高程起伏同比縮小、坡度不變）。所有寫死的賽道位置（sections／landmarks／zkeys／zones／junctions／fog／sFinish／sEnd／attractS／streets／decal40／zebras／gates／plan／路牌 SG／測速桿）都經過 `m139()`／`shrinkR139()` 換算；之後在 r139 新增任何寫死的 s 位置也要用 `m139()`。
-- 小地圖（v1.7）：`drawMinimap()` 改成「車頭朝上的局部地圖」，顯示前方約 400 m（視車速拉遠）的真實道路形狀，彎度大的路段變黃／橘紅（`TR.k`），標出其他車（塗裝色）、愛心、障礙車、終點線，右側細條是整段賽道進度。舊版把整條路線縮進 120×250 px，九公里長的八卦山變成近乎直線。視窗寬 < 760 px 或高 < 460 px 時仍隱藏。
 - 文字方向（v1.7）：路牌／建築／橫幅／路面噴字的貼圖組（`TEX.prop`、`TEX.decal`）上傳時要上下翻轉（`texArray(..., { flipV: true })`，用 `canvasPixels()`），因為模型 UV 都以「v=1 在畫布頂端」寫成；先前直接上傳畫布，所以牌樓匾額、路牌、橫幅、店招、路面「慢」「40」全是倒的，里程牌還取到錯的格子（2K 顯示成 18K）。新增使用 `TEX.prop`／`TEX.decal` 的 UV 時沿用「v=1 在上」。`TEX.ground`、`TEX.leaf`、車牌貼圖不翻轉。
 - 墾丁路線不放路人（`ROUTE.key !== 'kenting'` 才放，包含街道和起終點觀眾），停放的機車保留。
 - 水面（v1.5.2）：海面依深度與距離做淺青藍→深藍漸層（`TERRAIN_FS`，顏色在各路線 `water.deep/shallow`）；魚塭堤岸淺、中央深藍。
