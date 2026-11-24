@@ -11,7 +11,8 @@ function netRender() {
   const me = NET.players.find(p => p.id === NET.id);
   $('mpList').innerHTML = NET.players.map(p => '<li>' + (p.id === NET.host ? '<b>房主</b>' : '<b>車手</b>') + '<span></span></li>').join('');
   [...$('mpList').children].forEach((li, i) => { li.lastChild.textContent = NET.players[i].name + (NET.players[i].id === NET.id ? '（你）' : ''); });
-  if (NET.room) netStatus('房號 ' + NET.room + '　目前 ' + NET.players.length + '／8 人。' + (NET.quick ? '自動配對湊滿 8 人會自動出發；' : '') + '想和朋友同組，請把房號告訴他們，輸入後按「連線」。' + (me && NET.id !== NET.host ? '等待房主出發。' : ''));
+  const rn = k => (ROUTES[k] ? ROUTES[k].title : k);
+  if (NET.room) netStatus('房號 ' + NET.room + '　目前 ' + NET.players.length + '／8 人。賽道：' + rn(NET.route || 'kenting') + (NET.id === NET.host ? '（你是房主，可在上方「路線」更換，沒選就是墾丁）。' : '（由房主決定）。') + (NET.quick ? '自動配對湊滿 8 人會自動出發；' : '') + '想和朋友同組，請把房號告訴他們，輸入後按「連線」。' + (me && NET.id !== NET.host ? '等待房主出發。' : ''));
   updateGoLabel();
 }
 function updateGoLabel() {
@@ -48,7 +49,10 @@ async function netConnect(retry = 0) {
 }
 function netHandle(m) {
   if (m.t === 'room') {
-    NET.id = m.you; NET.host = m.host; NET.room = m.room; NET.players = m.players; $('mpRoom').value = m.room; netRender();
+    const wasHost = NET.id !== null && NET.host === NET.id;
+    NET.id = m.you; NET.host = m.host; NET.room = m.room; NET.players = m.players; if (m.route) NET.route = m.route; $('mpRoom').value = m.room; netRender();
+    // 當上房主（或剛連線就是房主）而且之前選過賽道：把選擇告訴伺服器，自動出發也會用它
+    if (NET.host === NET.id && !wasHost && NET.routeChosen && ROUTE && NET.route !== ROUTE.key) netSend({ t: 'route', route: ROUTE.key });
     if (GAME.online) {
       GAME.cars = GAME.cars.filter(c => !c.remote || c.bot || NET.players.some(p => p.id === c.netId));
       // 房主離線、換我當房主：接手模擬補位的電腦車（從牠們目前的位置繼續跑）
@@ -68,6 +72,7 @@ function netHandle(m) {
     for (const e of m.b || []) { const c = GAME.cars.find(c => c.netId === e[0]); if (c && c.remote) netApply(c, { s: e[1], d: e[2], v: e[3], r: e[4], st: e[5], b: e[6], k: e[7], bk: e[8] }); }
   } else if (m.t === 'fin') {
     NET.fins[m.id] = m.time; const c = GAME.cars.find(c => c.netId === m.id); if (c && m.time >= 0) { c.finished = true; c.ftime = m.time; } netResults();
+  } else if (m.t === 'route') { NET.route = m.route; netRender();
   } else if (m.t === 'auto') {
     if (m.sec > 0) netStatus('已湊滿 8 人，' + m.sec + ' 秒後自動出發（房主也可以提前按出發）。'); else netRender();
   } else if (m.t === 'err') netStatus(m.msg);
@@ -113,4 +118,4 @@ function stepRemote(c, dt) {
   settleCar(c, dt, t);
   if (c.nro) { c.roll = c.nro; c.y += c.nay; }
 }
-function goPressed() { if (GAME.selMode === 'online') { if (NET.room && NET.id === NET.host) netSend({ t: 'start', route: ROUTE.key, tod: GAME.tod }); } else beginRace(); }
+function goPressed() { if (GAME.selMode === 'online') { if (NET.room && NET.id === NET.host) netSend({ t: 'start', route: NET.routeChosen ? ROUTE.key : (NET.route || 'kenting'), tod: GAME.tod }); } else beginRace(); } // 房主沒選賽道就是墾丁

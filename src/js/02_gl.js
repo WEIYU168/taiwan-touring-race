@@ -312,6 +312,9 @@ function texArray(layers, w, h, o = {}) {
   const levels = o.mip === false ? 1 : Math.floor(Math.log2(Math.max(w, h))) + 1;
   gl.texStorage3D(gl.TEXTURE_2D_ARRAY, levels, o.srgb === false ? gl.RGBA8 : gl.SRGB8_ALPHA8, w, h, layers.length);
   gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+  // flipV：畫布直接上傳時畫布頂端是 v=0，但路牌／建築／路面噴字的模型貼圖座標都以「v=1 在上」寫成（見 canvasPixels），
+  // 不翻轉的話所有中文字會上下顛倒，所以這幾組貼圖上傳前先把畫布上下翻成 v=1 在頂端。
+  if (o.flipV) layers = layers.map(L => (L instanceof Uint8Array || L instanceof Uint8ClampedArray) ? L : canvasPixels(L));
   layers.forEach((L, i) => {
     if (L instanceof Uint8Array || L instanceof Uint8ClampedArray) gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, i, w, h, 1, gl.RGBA, gl.UNSIGNED_BYTE, L);
     else gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, i, w, h, 1, gl.RGBA, gl.UNSIGNED_BYTE, L);

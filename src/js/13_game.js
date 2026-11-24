@@ -347,16 +347,51 @@ function drawCockpit() { const P = useProg(PROGS.car); gl.disable(gl.CULL_FACE);
 const HUDC = {};
 function fmtTime(t) { const m = Math.floor(t / 60), s = t - m * 60; return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s.toFixed(2); }
 function setTxt(id, v) { if (HUDC[id] !== v) { HUDC[id] = v; $(id).textContent = v; } }
-function buildMinimap() {
-  const cv = $('mini'), W = cv.width, H = cv.height, m = 10; const sx = (W - 2 * m) / (TR.maxX - TR.minX), sz = (H - 2 * m) / (TR.maxZ - TR.minZ), sc = Math.min(sx, sz);
-  GAME.mm = { sc, ox: W / 2 - (TR.minX + TR.maxX) / 2 * sc, oz: H / 2 - (TR.minZ + TR.maxZ) / 2 * sc };
-  const off = mkCanvas(W, H), x = off.getContext('2d'); x.lineJoin = 'round'; x.lineCap = 'round';
-  const path = () => { x.beginPath(); for (let i = 0; i < TR.n; i += 4) { const px = TR.x[i] * sc + GAME.mm.ox, pz = TR.z[i] * sc + GAME.mm.oz; i ? x.lineTo(px, pz) : x.moveTo(px, pz); } };
-  path(); x.strokeStyle = 'rgba(8,12,10,0.75)'; x.lineWidth = 6; x.stroke(); path(); x.strokeStyle = '#f2f1ea'; x.lineWidth = 2.2; x.stroke();
-  const dot = (s, col, r) => { const t = trackAt(s, {}); x.fillStyle = '#101312'; x.beginPath(); x.arc(t.x * sc + GAME.mm.ox, t.z * sc + GAME.mm.oz, r + 1.5, 0, TAU); x.fill(); x.fillStyle = col; x.beginPath(); x.arc(t.x * sc + GAME.mm.ox, t.z * sc + GAME.mm.oz, r, 0, TAU); x.fill(); };
-  for (const h of HAZ.hearts) dot(h.s, '#ff4f7a', 3.2); if (HAZ.truck) { dot(HAZ.truck.s, '#f08c1e', 3); dot(HAZ.tanker.s, '#f08c1e', 3); }
-  x.fillStyle = '#f6c40e'; for (const c of SECTIONS) { const i = c.s0 / DS | 0; x.fillRect(TR.x[i] * sc + GAME.mm.ox - 4, TR.z[i] * sc + GAME.mm.oz - 1, 8, 2); }
-  GAME.mmBase = off;
+// ── 小地圖：跟著車子轉的局部地圖（車頭朝上），畫出前方約 400 m 的真實道路形狀，所以彎道、髮夾彎都看得出來。
+//   彎度大的路段變色（白＝直線／緩彎、黃＝中彎、橘紅＝急彎），車速越快視野越遠；右側細條是整段賽道的進度。
+//   （舊版把整條路線縮進 120×250 px，9 km 長的八卦山變成一條幾乎筆直的線，看不出實際彎道）
+const MM = { sc: 0.34 };
+function buildMinimap() { MM.sc = 0.34; }
+function drawMinimap(p) {
+  const cv = $('mini'), x = cv.getContext('2d'), W = cv.width, H = cv.height, BAR = 16, mapW = W - BAR, cx = mapW / 2, cy = H * 0.7;
+  const t = trackAt(p.s, _at), th = t.th, ct = Math.cos(th), st = Math.sin(th);
+  MM.sc += (lerp(0.36, 0.2, smooth(12, 55, Math.abs(p.v))) - MM.sc) * 0.06; const sc = MM.sc;       // 越快視野越遠
+  const P = (wx, wz) => { const dx = wx - p.x, dz = wz - p.z; return [cx - (dx * ct - dz * st) * sc, cy - (dx * st + dz * ct) * sc]; }; // 世界座標 → 小地圖（前方朝上）
+  x.clearRect(0, 0, W, H); x.lineJoin = 'round'; x.lineCap = 'round';
+  x.fillStyle = 'rgba(8,14,10,0.66)'; x.beginPath(); x.roundRect(0, 0, W, H, 12); x.fill();
+  x.strokeStyle = 'rgba(242,241,234,0.4)'; x.lineWidth = 1.5; x.stroke();
+  // ── 局部道路
+  x.save(); x.beginPath(); x.roundRect(2, 2, mapW - 2, H - 4, 10); x.clip();
+  const ahead = cy / sc + 40, behind = (H - cy) / sc + 40, i0 = Math.max(0, Math.floor((p.s - behind) / DS / 2) * 2), i1 = Math.min(TR.n - 1, Math.ceil((p.s + ahead) / DS / 2) * 2);
+  const seg = (i, j) => { const a = P(TR.x[i], TR.z[i]), b = P(TR.x[j], TR.z[j]); x.moveTo(a[0], a[1]); x.lineTo(b[0], b[1]); };
+  x.strokeStyle = 'rgba(0,0,0,0.85)'; x.lineWidth = 9; x.beginPath(); for (let i = i0; i < i1; i += 2) seg(i, Math.min(i + 2, TR.n - 1)); x.stroke();     // 外框
+  x.lineWidth = 5.2;
+  for (let i = i0; i < i1; i += 2) {
+    const j = Math.min(i + 2, TR.n - 1), k = Math.abs(TR.k[i] + TR.k[j]) * 0.5, past = i * DS < p.s - 4;
+    x.strokeStyle = k > 0.014 ? '#ff6a3d' : k > 0.0075 ? '#f6c40e' : '#f2f1ea'; x.globalAlpha = past ? 0.4 : 1;
+    x.beginPath(); seg(i, j); x.stroke();
+  }
+  x.globalAlpha = 1;
+  // 標記：愛心、障礙車、終點線
+  const mark = (s, col, r) => { if (s < p.s - behind || s > p.s + ahead) return; const q = trackAt(s, {}), a = P(q.x, q.z); x.fillStyle = '#0b0f0c'; x.beginPath(); x.arc(a[0], a[1], r + 1.6, 0, TAU); x.fill(); x.fillStyle = col; x.beginPath(); x.arc(a[0], a[1], r, 0, TAU); x.fill(); };
+  for (const h of HAZ.hearts) if (!h.got) mark(h.s, '#ff4f7a', 3.6);
+  if (HAZ.truck) { mark(HAZ.truck.s, '#f08c1e', 3.2); mark(HAZ.tanker.s, '#f08c1e', 3.2); }
+  if (S_FINISH > p.s - behind && S_FINISH < p.s + ahead) { const q = trackAt(S_FINISH, {}), a = P(q.x, q.z), ang = -(q.th - th); x.save(); x.translate(a[0], a[1]); x.rotate(ang); for (let k = 0; k < 6; k++) { x.fillStyle = k % 2 ? '#111' : '#fff'; x.fillRect(-9 + k * 3, -2.5, 3, 5); } x.restore(); }
+  // 其他車：用車身塗裝色（連線對戰時可對照排名榜）
+  for (const c of GAME.cars) { if (c === p) continue; const a = P(c.x, c.z); if (a[0] < -6 || a[0] > mapW + 6 || a[1] < -6 || a[1] > H + 6) continue; x.fillStyle = '#0b0f0c'; x.beginPath(); x.arc(a[0], a[1], 4.6, 0, TAU); x.fill(); x.fillStyle = (typeof carColor === 'function' && c.liv) ? carColor(c) : '#f2f1ea'; x.beginPath(); x.arc(a[0], a[1], 3.2, 0, TAU); x.fill(); }
+  // 自己：黃色箭頭，指向車頭相對賽道的方向（打滑、轉向時會偏）
+  { const a = P(p.x, p.z), rel = angDiff(p.yaw, th); x.save(); x.translate(a[0], a[1]); x.rotate(-rel); x.fillStyle = '#0b0f0c'; x.beginPath(); x.moveTo(0, -9); x.lineTo(6.5, 7); x.lineTo(0, 3.5); x.lineTo(-6.5, 7); x.closePath(); x.fill();
+    x.fillStyle = '#f6c40e'; x.beginPath(); x.moveTo(0, -7); x.lineTo(4.6, 5); x.lineTo(0, 2.4); x.lineTo(-4.6, 5); x.closePath(); x.fill(); x.restore(); }
+  x.restore();
+  // ── 右側整段賽道進度條（下＝起點，上＝終點）
+  { const bx = W - BAR / 2 - 1, y0 = 14, y1 = H - 14, fy = s => y1 - sat((s - S_START) / (S_FINISH - S_START)) * (y1 - y0);
+    x.strokeStyle = 'rgba(255,255,255,0.22)'; x.lineWidth = 5; x.beginPath(); x.moveTo(bx, y0); x.lineTo(bx, y1); x.stroke();
+    x.strokeStyle = '#f6c40e'; x.lineWidth = 5; x.beginPath(); x.moveTo(bx, y1); x.lineTo(bx, fy(Math.min(p.s, S_FINISH))); x.stroke();
+    x.fillStyle = 'rgba(255,255,255,0.7)'; for (const c of SECTIONS) if (c.s0 > S_START) x.fillRect(bx - 5, fy(c.s0) - 0.5, 10, 1);
+    x.fillStyle = '#ff4f7a'; for (const h of HAZ.hearts) if (!h.got) { x.beginPath(); x.arc(bx + 7.5, fy(h.s), 1.8, 0, TAU); x.fill(); }
+    for (const c of GAME.cars) { if (c === p) continue; x.fillStyle = (typeof carColor === 'function' && c.liv) ? carColor(c) : '#f2f1ea'; x.beginPath(); x.arc(bx, fy(Math.min(c.s, S_FINISH)), 2.6, 0, TAU); x.fill(); }
+    x.fillStyle = '#0b0f0c'; x.beginPath(); x.arc(bx, fy(Math.min(p.s, S_FINISH)), 5, 0, TAU); x.fill(); x.fillStyle = '#f6c40e'; x.beginPath(); x.arc(bx, fy(Math.min(p.s, S_FINISH)), 3.4, 0, TAU); x.fill();
+    x.fillStyle = '#fff'; x.fillRect(bx - 5, y0 - 3, 10, 3); x.fillStyle = '#111'; x.fillRect(bx - 5, y0 - 3, 5, 1.5); x.fillRect(bx, y0 - 1.5, 5, 1.5); }
 }
 function updateHUD(dt) {
   const p = GAME.player; if (!p) return;
@@ -379,9 +414,7 @@ function updateHUD(dt) {
   if (GAME.online && GAME.mode === 'race') updateRank(dt);
   $('prog').style.width = (sat((p.s - S_START) / (S_FINISH - S_START)) * 100).toFixed(1) + '%';
   if (REN.frame % 3) return;
-  const cv = $('mini'), x = cv.getContext('2d'), mm = GAME.mm; x.clearRect(0, 0, cv.width, cv.height); x.drawImage(GAME.mmBase, 0, 0);
-  for (const c of GAME.cars) { if (c === p) continue; x.fillStyle = '#101312'; x.beginPath(); x.arc(c.x * mm.sc + mm.ox, c.z * mm.sc + mm.oz, 3.4, 0, TAU); x.fill(); x.fillStyle = '#f2f1ea'; x.beginPath(); x.arc(c.x * mm.sc + mm.ox, c.z * mm.sc + mm.oz, 2.2, 0, TAU); x.fill(); }
-  x.fillStyle = '#101312'; x.beginPath(); x.arc(p.x * mm.sc + mm.ox, p.z * mm.sc + mm.oz, 5.6, 0, TAU); x.fill(); x.fillStyle = '#f6c40e'; x.beginPath(); x.arc(p.x * mm.sc + mm.ox, p.z * mm.sc + mm.oz, 4, 0, TAU); x.fill();
+  drawMinimap(p);
   if (!p.ai) { const la = trackAt(p.s + 6 + p.v * 1.15, _at).rv; $('brk').classList.toggle('on', GAME.aid && GAME.state === 'racing' && p.v > la * 1.1 + 3.5); } else $('brk').classList.remove('on');
   const wrong = !p.ai && Math.abs(angDiff(p.yaw, trackAt(p.s, _at).th)) > 2 && p.v > 4; $('wrong').classList.toggle('on', wrong);
 }

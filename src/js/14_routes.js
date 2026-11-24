@@ -1,13 +1,16 @@
 // ───────────────────────── 三條路線 ─────────────────────────
 let ROUTE = null;
 const noBridge = () => 0, noOverride = () => -1;
+// 八卦山 139 路線縮短 1/5（12 km → 約 9.6 km）：前 120 m 起跑直線不動，其餘沿路距離乘 R139_F，彎角不變。
+// 凡是寫死的賽道位置（s）都經過 m139() 換算；shrinkR139() 會處理下面那張路線表裡的陣列與函式。
+const R139_F = 0.8, m139 = s => s < 120 ? s : 120 + (s - 120) * R139_F, inv139 = s => s < 120 ? s : 120 + (s - 120) / R139_F;
 const brown2 = i => cellUV(i, 2, 4);
 const ROUTES = {
   // ── 縣道 139：八卦山大佛 → 松柏嶺受天宮
   r139: {
     key: 'r139', shield: '139', title: '139 稜線', sub: '八卦山大佛 → 松柏嶺受天宮', tag: '山稜・茶園',
     desc: '沿八卦台地稜線南行：相思樹與小葉欖仁綠色隧道、紅土鳳梨田、常起霧的 19K–23K 連續彎、南投八卦茶園，左望中央山脈、右瞰彰化平原。',
-    note: '實際 35.5 km 濃縮為 12 km；地標順序、走向與各段地景依實境配置，里程與海拔為近似對應。季節設定為 11 月：落羽松轉紅、芒草抽穗。',
+    note: '實際 35.5 km 濃縮為約 9.6 km；地標順序、走向與各段地景依實境配置，里程與海拔為近似對應。季節設定為 11 月：落羽松轉紅、芒草抽穗。',
     pieces: PIECES, sections: SECTIONS, landmarks: LANDMARKS, elev: ELEV, realAlt: REAL_ALT, zkeys: ZKEYS, zones: ZONES, junctions: JUNCTIONS,
     fog: [5700, 6900], sStart: 90, sFinish: 12000, sEnd: 12300, heading0: 50, elevNoise: 1, kmMax: 35, attractS: 2380,
     hwFn(si) { let w = 5.0; w = lerp(6.2, w, smooth(180, 320, si)); w = lerp(w, 4.7, smooth(5560, 5680, si) * (1 - smooth(7080, 7200, si))); w = lerp(w, 4.7, smooth(9620, 9720, si) * (1 - smooth(10120, 10220, si))); return lerp(w, 5.8, smooth(11650, 11850, si)); },
@@ -15,9 +18,10 @@ const ROUTES = {
     landOverride(s, left, ad) { if (s > 5950 && s < 6180 && left && ad < 120) return LU.CYPRESS; if (s > 300 && s < 560 && !left && ad < 150) return LU.TOWN; if (s > 12020 && s < 12200 && left && ad < 110) return LU.TOWN; return -1; },
     streets: [[40, 250], [11700, 12290]], streetSkip: (s, sg) => (s > 11950 && s < 12200 && sg > 0) || (s > 60 && s < 120),
     plan(add, tr) {
-      add('buddha', 430, -78, { r: 26, pave: 1, y: trackAt(430, tr).y + 2 }); add('temple', 430, -42, { r: 15, pave: 1, w: 18, dp: 10, plaque: 3, big: 1, face: 'away', y: trackAt(430, tr).y + 1 });
-      add('center', 1450, 26, { r: 14, pave: 1 }); add('temple', 7262, 34, { r: 17, pave: 1, w: 16, dp: 9, plaque: 2, big: 0 }); add('sanheyuan', 7900, -36, { r: 20, pave: 1 });
-      add('bridge', 9085, -215, { r: 0, flat: false, y: trackAt(9085, tr).y - 4 }); add('resto', 9560, -27, { r: 12, pave: 1 }); add('temple', 12095, 52, { r: 30, pave: 1, w: 26, dp: 14, plaque: 1, big: 1 });
+      const m = m139; // 縮短後的位置
+      add('buddha', m(430), -78, { r: 26, pave: 1, y: trackAt(m(430), tr).y + 2 }); add('temple', m(430), -42, { r: 15, pave: 1, w: 18, dp: 10, plaque: 3, big: 1, face: 'away', y: trackAt(m(430), tr).y + 1 });
+      add('center', m(1450), 26, { r: 14, pave: 1 }); add('temple', m(7262), 34, { r: 17, pave: 1, w: 16, dp: 9, plaque: 2, big: 0 }); add('sanheyuan', m(7900), -36, { r: 20, pave: 1 });
+      add('bridge', m(9085), -215, { r: 0, flat: false, y: trackAt(m(9085), tr).y - 4 }); add('resto', m(9560), -27, { r: 12, pave: 1 }); add('temple', m(12095), 52, { r: 30, pave: 1, w: 26, dp: 14, plaque: 1, big: 1 });
     },
     gates: [{ s: 116, plaque: 0, banner: 0 }, { s: 12000, plaque: 1, banner: 1 }], decal40: [5630, 5990, 6380, 6800, 9700, 9980], zebras: [11820, 160], init() { }
   },
@@ -127,6 +131,22 @@ const ROUTES = {
       const db = Math.hypot(x - this.Pb[0], z - this.Pb[1]); return Math.min(h, lerp(-4, h, smooth(120, 230, db))); }
   }
 };
+(function shrinkR139() {
+  const R = ROUTES.r139, f = R139_F, m = m139;
+  R.pieces = R.pieces.map((p, i) => i === 0 ? p : [Math.round(p[0] * f), p[1]]);   // 彎角不變、長度縮短 → 路形是縮小的相似形
+  R.sections = R.sections.map(c => Object.assign({}, c, { s0: m(c.s0), s1: m(c.s1) }));
+  R.landmarks = R.landmarks.map(c => Object.assign({}, c, { s: m(c.s) }));
+  R.elev = R.elev.map(e => [m(e[0]), e[0] <= 100 ? e[1] : 38 + (e[1] - 38) * f]);    // 高程起伏同比縮小，坡度不變
+  R.realAlt = R.realAlt.map(e => [m(e[0]), e[1]]);                                    // 儀表「海拔」顯示的是實際海拔，數值不變
+  R.zkeys = R.zkeys.map(z => Object.assign({}, z, { s: m(z.s) }));
+  R.zones = R.zones.map(z => Object.assign({}, z, { s0: m(z.s0), s1: m(z.s1) }));
+  R.junctions.forEach(j => { j.s = m(j.s); });                                        // 路口寬度與岔路長度不變，只換位置
+  R.fog = R.fog.map(m); R.sFinish = m(R.sFinish); R.sEnd = m(R.sEnd); R.attractS = m(R.attractS);
+  const hw0 = R.hwFn, lo0 = R.landOverride, sk0 = R.streetSkip;
+  R.hwFn = si => hw0(inv139(si)); R.landOverride = (s, left, ad) => lo0(inv139(s), left, ad); R.streetSkip = (s, sg) => sk0(inv139(s), sg);
+  R.streets = R.streets.map(a => a.map(m)); R.decal40 = R.decal40.map(m); R.zebras = R.zebras.map(m); R.gates = R.gates.map(g => Object.assign({}, g, { s: m(g.s) }));
+  R.note = '實際 35.5 km 濃縮為約 9.6 km；地標順序、走向與各段地景依實境配置，里程與海拔為近似對應。季節設定為 11 月：落羽松轉紅、芒草抽穗。';
+})();
 function applyRoute(key) {
   ROUTE = ROUTES[key];
   PIECES = ROUTE.pieces; SECTIONS = ROUTE.sections; LANDMARKS = ROUTE.landmarks; ELEV = ROUTE.elev; REAL_ALT = ROUTE.realAlt; ZKEYS = ROUTE.zkeys; ZONES = ROUTE.zones; JUNCTIONS = ROUTE.junctions;

@@ -125,13 +125,14 @@ function townhouse(mb, R, w, d, floors, opt = {}) {
   if (R() < 0.75) { const c = [[0.2, 0.42, 0.62], [0.24, 0.5, 0.36], [0.62, 0.22, 0.18], [0.7, 0.7, 0.72]][R() * 4 | 0]; mb.lay(PL.CORR).col(c[0], c[1], c[2], 0.6); mb.box(0, H + 1.2, -d * 0.6, w / 2 - 0.3, 1.2, d * 0.3, 2); roofGable(mb, w - 0.6, d * 0.6, H + 2.4, 0.7, PL.CORR, 0.3); }
   mb.lay(PL.STEEL).col(0.85, 0.87, 0.9, 0.3); mb.cyl(w / 2 - 1, H, -1.2, 0.5, 0.5, 1.3, 10, true);
   if (floors > 1) windowExtras(mb, R, w, floors, fh, bays);
-  // 騎樓下停放的機車、門口的路人
+  // 騎樓下停放的機車、門口的路人（墾丁路線不放路人，只保留停放的機車）
+  const people = ROUTE.key !== 'kenting';
   if (opt.shop !== false) {
     const n = Math.floor((w - 0.6) / 0.78);
     for (let i = 0; i < n; i++) if (R() < 0.55) scooter(mb, R, -w / 2 + 0.55 + i * 0.78 + (R() - 0.5) * 0.08, 0.95 + (R() - 0.5) * 0.15, (R() - 0.5) * 0.25);
     const np = R() < 0.55 ? 1 + (R() < 0.35 ? 1 : 0) : 0;
-    for (let i = 0; i < np; i++) person(mb, R, (R() - 0.5) * (w - 1), 1.9 + R() * 1.2, (R() - 0.5) * 2.4);
-  } else if (R() < 0.35) person(mb, R, (R() - 0.5) * (w - 2), 1.5 + R() * 1.5, (R() - 0.5) * 3, { farm: true });
+    for (let i = 0; i < np; i++) { const x = (R() - 0.5) * (w - 1), z = 1.9 + R() * 1.2, ry = (R() - 0.5) * 2.4; if (people) person(mb, R, x, z, ry); } // 照樣取亂數，其他路線的街景不受影響
+  } else if (R() < 0.35) { const x = (R() - 0.5) * (w - 2), z = 1.5 + R() * 1.5, ry = (R() - 0.5) * 3; if (people) person(mb, R, x, z, ry, { farm: true }); }
   if (opt.sign !== false && R() < 0.8) { const uv = cellUV(R() * 16 | 0, 4, 4); mb.lay(PL.SHOPSIGN).col(1, 1, 1, 1); const sx = (R() < 0.5 ? -1 : 1) * (w / 2 - 0.2); const du = (uv[2] - uv[0]) * 0.26; for (const k of [1, -1]) mb.q4([sx, fh + 0.2, 0.9 * (k > 0 ? 1 : 0.02) + 0.1], [sx, fh + 0.2, k > 0 ? 0.1 : 1.0], [sx, fh + 3.2, k > 0 ? 0.1 : 1.0], [sx, fh + 3.2, 0.9 * (k > 0 ? 1 : 0.02) + 0.1], uv[0] + du, uv[1], uv[2] - du, uv[3]); }
 }
 function shed(mb, R, w, d, h) {
@@ -299,9 +300,9 @@ function buildProps() {
   }
   // 牌樓／賽事門架
   for (const g of ROUTE.gates) { const f = roadFrame(g.s, 0, 1); f.m[13] = f.t.y; const mb = mbAt(g.s); mb.m = f.m; if (g.plaque >= 0) paifang(mb, f.t.hw * 2 + 3.4, g.plaque, g.banner); else gantry(mb, f.t.hw * 2 + 3.4, g.banner); mb.m = null;
-    // 門架兩側的觀眾
+    // 門架兩側的觀眾（墾丁路線不放人）
     const Rs = mulberry32((g.s * 7 | 0) + 31);
-    for (const sg of [-1, 1]) for (let k = 0; k < 9; k++) {
+    if (ROUTE.key !== 'kenting') for (const sg of [-1, 1]) for (let k = 0; k < 9; k++) {
       const s = g.s + (Rs() - 0.5) * 34, hw = trackAt(s, tr).hw, d = sg * (hw + BARRIER_OFF + 1.4 + Rs() * 3.2);
       if (s < 2 || s > S_END - 2 || inJunction(s, 4)) continue;
       const pf = roadFrame(s, d, 2); const gy = groundY(pf.x, pf.z); if (Math.abs(gy - pf.t.y) > 2.5) continue;
@@ -339,7 +340,7 @@ function buildProps() {
   const SG = ROUTE.key !== 'r139' ? ROUTE.signs() : [[5590, PL.SPEED, [0, 0.26, 0.5, 0.74], 0.9, 0.9], [5560, PL.INFO, [0.5, 0, 1, 0.5], 1.5, 1.1], [6330, PL.INFO, [0, 0, 0.5, 0.5], 1.5, 1.1], [6040, PL.INFO, [0, 0.5, 0.5, 1], 2.0, 1.5], [9660, PL.WARN2, [0, 0.26, 0.5, 0.74], 1.0, 1.0], [9690, PL.SPEED, [0, 0.26, 0.5, 0.74], 0.9, 0.9],
   [1880, PL.DIR, [0.5, 0.5, 1, 1], 2.6, 2.0], [4820, PL.DIR, [0, 0, 0.5, 0.5], 2.6, 2.0], [10420, PL.DIR, [0.5, 0, 1, 0.5], 2.6, 2.0], [7100, PL.DIR, [0, 0.5, 0.5, 1], 2.6, 2.0],
   [330, PL.BROWN, cellUV(0, 2, 4), 2.6, 1.3], [1700, PL.BROWN, cellUV(1, 2, 4), 2.2, 1.1], [8980, PL.BROWN, cellUV(2, 2, 4), 2.6, 1.3], [9480, PL.BROWN, cellUV(3, 2, 4), 2.6, 1.3], [7180, PL.BROWN, cellUV(4, 2, 4), 2.2, 1.1], [11500, PL.BROWN, cellUV(5, 2, 4), 2.6, 1.3], [5930, PL.BROWN, cellUV(6, 2, 4), 2.6, 1.3], [7400, PL.BROWN, cellUV(7, 2, 4), 2.6, 1.3],
-  [300, PL.SHIELD, [0, 0, 1, 1], 0.8, 0.8], [2440, PL.SHIELD, [0, 0, 1, 1], 0.8, 0.8], [7300, PL.SHIELD, [0, 0, 1, 1], 0.8, 0.8], [10300, PL.SHIELD, [0, 0, 1, 1], 0.8, 0.8]];
+  [300, PL.SHIELD, [0, 0, 1, 1], 0.8, 0.8], [2440, PL.SHIELD, [0, 0, 1, 1], 0.8, 0.8], [7300, PL.SHIELD, [0, 0, 1, 1], 0.8, 0.8], [10300, PL.SHIELD, [0, 0, 1, 1], 0.8, 0.8]].map(g => [m139(g[0]), ...g.slice(1)]); // 139 路線已縮短，路牌位置一起換算
   for (const g of SG) signPost(mbAt(g[0]), g[0], -(trackAt(g[0], tr).hw + BARRIER_OFF + 1.6), g[1], g[2], g[3], g[4], g[4] > 1.2 ? 2.4 : 1.9);
   // 彎道警告：每個明顯彎道入口前約 75 m，右側路邊；連續彎道只立一面「連續彎路」
   { const curves = []; for (let i = 40; i < TR.n - 30;) { if (Math.abs(TR.k[i]) > 0.0105) { let j = i; while (j < TR.n - 1 && Math.abs(TR.k[j]) > 0.006) j++; curves.push({ i0: i, i1: j, dir: Math.sign(TR.k[i]) }); i = j + 3; } else i++; }
@@ -353,7 +354,7 @@ function buildProps() {
       lastS = chain ? curves[r].i1 * DS : s;
     } }
   // 測速照相桿
-  if (ROUTE.key === 'r139') { const f = roadFrame(6400, -(trackAt(6400, tr).hw + BARRIER_OFF + 1), 1); f.m[13] = groundY(f.x, f.z); const mb = mbAt(6400); mb.m = f.m; mb.lay(-1).col(0.55, 0.57, 0.58, 0.3); mb.cyl(0, -0.3, 0, 0.09, 0.07, 5.2, 8, true); mb.col(0.9, 0.9, 0.9, 0.6); mb.box(0, 4.9, 0.25, 0.25, 0.2, 0.3); mb.m = null; }
+  if (ROUTE.key === 'r139') { const sc = m139(6400), f = roadFrame(sc, -(trackAt(sc, tr).hw + BARRIER_OFF + 1), 1); f.m[13] = groundY(f.x, f.z); const mb = mbAt(sc); mb.m = f.m; mb.lay(-1).col(0.55, 0.57, 0.58, 0.3); mb.cyl(0, -0.3, 0, 0.09, 0.07, 5.2, 8, true); mb.col(0.9, 0.9, 0.9, 0.6); mb.box(0, 4.9, 0.25, 0.25, 0.2, 0.3); mb.m = null; }
   // 電線桿
   for (let i = 40; i < TR.n - 20; i += 22) { const s = i * DS, zid = zoneOf(s).id; if (!(zoneOf(s).poles || ['plateau', 'tea', 'town', 'city', 'pine', 'tunnel', 'hengshan'].includes(zid)) || inJunction(s, 14) || ROUTE.bridge(s) > 0.1) continue;
     const f = roadFrame(s, TR.hw[i] + BARRIER_OFF + 1.9, 0); const gi = gridIdx(f.x, f.z); if (gi >= 0 && (TG.MASK[gi] & 2)) continue; f.m[13] = groundY(f.x, f.z); const mb = mbAt(s); mb.m = f.m;

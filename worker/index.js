@@ -94,6 +94,7 @@ export class Room {
     this.env = env;
     this.code = ''; this.quick = false;
     this.players = []; this.host = 0; this.phase = 'lobby'; this.ready = new Set();
+    this.route = 'kenting'; // 房主沒選賽道就是墾丁；房主選了就記在這裡（自動出發也用它）
     this.timer = null; this.auto = null; this.nextId = 1;
   }
 
@@ -112,7 +113,7 @@ export class Room {
   cast(obj, except) { const s = JSON.stringify(obj); for (const p of this.players) if (p !== except) this.send(p.ws, s); }
   sendRoom() {
     const list = this.players.map(q => ({ id: q.id, name: q.name, slot: q.slot, liv: q.liv, car: q.car | 0 }));
-    for (const p of this.players) this.send(p.ws, { t: 'room', room: this.code, you: p.id, host: this.host, phase: this.phase, players: list });
+    for (const p of this.players) this.send(p.ws, { t: 'room', room: this.code, you: p.id, host: this.host, phase: this.phase, route: this.route, players: list });
   }
   report() { // 通知大廳目前人數與階段（所有房間都回報，大廳才算得出總人數上限）
     if (!this.env.LOBBY) return;
@@ -144,13 +145,16 @@ export class Room {
         // 自動配對房間湊滿 8 人：8 秒後自動出發（房主可提前出發）
         if (this.quick && this.players.length >= ROOM_MAX && !this.auto && this.phase === 'lobby') {
           this.cast({ t: 'auto', sec: AUTO_START_MS / 1000 });
-          this.auto = setTimeout(() => { this.auto = null; if (this.phase === 'lobby') this.begin('r139', 'day'); }, AUTO_START_MS);
+          this.auto = setTimeout(() => { this.auto = null; if (this.phase === 'lobby') this.begin(this.route, 'day'); }, AUTO_START_MS);
         }
         return;
       }
       if (!me.joined) return;
-      if (m.t === 'start' && me.id === this.host && this.phase === 'lobby') {
-        this.begin(ROUTES.includes(m.route) ? m.route : 'r139', TODS.includes(m.tod) ? m.tod : 'day');
+      if (m.t === 'route' && me.id === this.host && this.phase === 'lobby' && ROUTES.includes(m.route)) {
+        this.route = m.route; this.cast({ t: 'route', route: this.route }); // 房主換賽道：通知房間所有人
+      } else if (m.t === 'start' && me.id === this.host && this.phase === 'lobby') {
+        if (ROUTES.includes(m.route)) this.route = m.route;
+        this.begin(this.route, TODS.includes(m.tod) ? m.tod : 'day');
       } else if (m.t === 'ready' && this.phase === 'loading') {
         this.ready.add(me.id); if (this.players.every(p => this.ready.has(p.id))) this.go();
       } else if (m.t === 's') {

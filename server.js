@@ -44,7 +44,7 @@ const rooms = new Map(); let nextId = 1;
 const ROUTES = ['r139', 'kenting', 'dapeng'], TODS = ['dawn', 'day', 'dusk'];
 const code = () => { let c; do { c = Array.from({ length: 4 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.random() * 32 | 0]).join(''); } while (rooms.has(c)); return c; };
 const cast = (room, obj, except) => { const s = JSON.stringify(obj); for (const p of room.players) if (p !== except) wsSend(p.sock, s); };
-const sendRoom = room => { for (const p of room.players) wsSend(p.sock, { t: 'room', room: room.code, you: p.id, host: room.host, phase: room.phase, players: room.players.map(q => ({ id: q.id, name: q.name, slot: q.slot, liv: q.liv, car: q.car | 0 })) }); };
+const sendRoom = room => { for (const p of room.players) wsSend(p.sock, { t: 'room', room: room.code, you: p.id, host: room.host, phase: room.phase, route: room.route || 'kenting', players: room.players.map(q => ({ id: q.id, name: q.name, slot: q.slot, liv: q.liv, car: q.car | 0 })) }); };
 function go(room) { if (room.phase !== 'loading') return; clearTimeout(room.timer); room.phase = 'racing'; cast(room, { t: 'go' }); }
 
 server.on('upgrade', (req, sock) => {
@@ -63,8 +63,10 @@ server.on('upgrade', (req, sock) => {
       const usedLiv = new Set(r.players.map(p => p.liv)); while (usedLiv.has(me.liv) && usedLiv.size < 8) me.liv = (me.liv + 1) & 7;
       me.room = r; r.players.push(me); r.players.sort((a, b) => a.slot - b.slot); sendRoom(r);
     } else if (!room) return;
+    else if (m.t === 'route' && me.id === room.host && room.phase === 'lobby' && ROUTES.includes(m.route)) { room.route = m.route; cast(room, { t: 'route', route: room.route }); }
     else if (m.t === 'start' && me.id === room.host) {
-      const route = ROUTES.includes(m.route) ? m.route : 'r139', tod = TODS.includes(m.tod) ? m.tod : 'day';
+      if (ROUTES.includes(m.route)) room.route = m.route;
+      const route = room.route || 'kenting', tod = TODS.includes(m.tod) ? m.tod : 'day'; // 房主沒選賽道就是墾丁
       room.phase = 'loading'; room.ready = new Set(); cast(room, { t: 'load', route, tod, bots: Math.max(0, 8 - room.players.length) });
       clearTimeout(room.timer); room.timer = setTimeout(() => go(room), 25000);
     } else if (m.t === 'ready' && room.phase === 'loading') { room.ready.add(me.id); if (room.players.every(p => room.ready.has(p.id))) go(room); }

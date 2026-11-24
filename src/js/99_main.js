@@ -36,8 +36,8 @@ async function boot() {
   SCENE.opaque.push(drawCars, drawProps, drawHazards, drawVegMain); SCENE.shadow.push(drawCarsShadow, drawPropsShadow, drawHazardsShadow, drawVegShadow); SCENE.cockpit.push(drawCockpit); SCENE.blend.push(drawFX);
   const touch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0; REN.touch = touch; if (touch) document.body.classList.add('touch');
   const small = Math.min(window.innerWidth, window.innerHeight) < 520;
-  let qk = touch ? (small ? 'min' : 'low') : 'med', rk = 'r139';
-  try { const s = localStorage.getItem('r139_q'); if (s && QUALITY[s]) qk = s; const r = localStorage.getItem('r139_route'); if (r && ROUTES[r]) rk = r; } catch (e) { }
+  let qk = touch ? (small ? 'min' : 'low') : 'med', rk = 'kenting'; // 沒選過賽道時預設墾丁
+  try { const s = localStorage.getItem('r139_q'); if (s && QUALITY[s]) qk = s; } catch (e) { } // 賽道每次開啟都從墾丁開始（沒選賽道的預設），不再沿用上次的選擇
   GAME.aid = 1; GAME.autoThr = touch; GAME.carModel = 0; GAME.steerSens = 1;
   try { const c = +localStorage.getItem('r139_car'); if (c >= 0 && c < CAR_MODELS.length) GAME.carModel = c; const st = localStorage.getItem('r139_steer'); if (st !== null && STEER[+st]) GAME.steerSens = +st; } catch (e) { }
   setQuality(qk); setTimeOfDay('day'); resizeRender(canvas);
@@ -84,8 +84,18 @@ function setSeg(id, v) { for (const o of $(id).children) o.setAttribute('aria-pr
 function setupUI(canvas, qk) {
   const seg = (id, cb, init) => { const el = $(id); el.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; setSeg(id, b.dataset.v); cb(b.dataset.v); }); if (init !== undefined) setSeg(id, init); };
   GAME.selMode = 'race';
-  seg('sRoute', v => { if (ROUTE && v === ROUTE.key) return; loadRoute(v).catch(e => { console.error('ROUTE FAIL', e && e.stack || e); $('loadTxt').textContent = '路線載入失敗：' + (e && e.message || e); }); });
-  seg('sMode', v => { GAME.selMode = v; document.body.classList.toggle('mp', v === 'online'); updateGoLabel(); });
+  const routeFail = e => { console.error('ROUTE FAIL', e && e.stack || e); $('loadTxt').textContent = '路線載入失敗：' + (e && e.message || e); };
+  seg('sRoute', v => {
+    // 連線對戰：只有房主決定賽道；房主沒選就是墾丁
+    if (GAME.selMode === 'online' && NET.room && NET.id !== NET.host) { setSeg('sRoute', ROUTE.key); toast('只有房主可以選擇賽道'); return; }
+    NET.routeChosen = true; if (netOpen() && NET.room && NET.id === NET.host) netSend({ t: 'route', route: v });
+    if (ROUTE && v === ROUTE.key) { netRender(); return; } loadRoute(v).then(() => netRender()).catch(routeFail);
+  });
+  seg('sMode', v => {
+    GAME.selMode = v; document.body.classList.toggle('mp', v === 'online'); updateGoLabel();
+    if (v === 'online' && !NET.routeChosen && ROUTE && ROUTE.key !== 'kenting') loadRoute('kenting').then(() => netRender()).catch(routeFail); // 房主沒選賽道 → 預設墾丁
+    else netRender();
+  });
   seg('sTod', v => { GAME.tod = v; setTimeOfDay(v); REN.forceFar = true; });
   seg('sDiff', v => { GAME.diff = +v; });
   seg('sAid', v => { GAME.aid = +v; }, 1);

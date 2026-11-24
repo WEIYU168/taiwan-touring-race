@@ -301,7 +301,7 @@ function buildPropTex() {
   [c, x] = C(); x.clearRect(0, 0, S, S);
   x.fillStyle = '#f08c1e'; x.fillRect(8, 120, 240, 272); x.strokeStyle = '#111'; x.lineWidth = 8; x.strokeRect(16, 128, 224, 256); text(x, '道路維護', 128, 196, 46, '#111', '800'); text(x, '車道縮減', 128, 262, 46, '#111', '800'); text(x, '請往左', 128, 330, 40, '#111', '800');
   x.fillStyle = '#f6c40e'; x.fillRect(264, 120, 240, 272); x.strokeRect(272, 128, 224, 256); text(x, '前方事故', 384, 196, 46, '#111', '800'); text(x, '路面油漬', 384, 262, 46, '#d6221f', '800'); text(x, '請靠右', 384, 330, 40, '#111', '800'); L.push(c);
-  TEX.prop = texArray(L, S, S, {});
+  TEX.prop = texArray(L, S, S, { flipV: true }); // 翻正：否則牌樓匾額、路牌、橫幅、店招的字全是倒的
 }
 
 // 路面噴字／標線貼花
@@ -319,5 +319,5 @@ function buildDecalTex() {
   { const c = mkCanvas(W, H), x = c.getContext('2d'), R = mulberry32(77); x.clearRect(0, 0, W, H);  // 6 油漬
     for (let i = 0; i < 26; i++) { const px = W * (0.18 + R() * 0.64), py = H * (0.08 + R() * 0.84), r = 26 + R() * 70, g = x.createRadialGradient(px, py, 0, px, py, r); g.addColorStop(0, 'rgba(8,6,5,0.95)'); g.addColorStop(0.7, 'rgba(10,8,6,0.85)'); g.addColorStop(1, 'rgba(10,8,6,0)'); x.fillStyle = g; x.beginPath(); x.ellipse(px, py, r * 0.8, r * 1.4, R(), 0, TAU); x.fill(); }
     L.push(c); }
-  TEX.decal = texArray(L, W, H, { wrap: gl.REPEAT, wrapT: gl.CLAMP_TO_EDGE });
+  TEX.decal = texArray(L, W, H, { wrap: gl.REPEAT, wrapT: gl.CLAMP_TO_EDGE, flipV: true }); // 翻正：路面的「慢」「40」「139」才會是正的（頂端朝遠方）
 }
