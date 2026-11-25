@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-sGoTHSnHUcxCC1PCl3XVFzGaYv11a2jlLfqIH4/+ay0='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' ws: wss:; media-src 'self' blob: data:; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-lICAABj/Re487nZQ4cewqDH1uwKksxQFxw89loiATqg='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' ws: wss:; media-src 'self' blob: data:; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <meta name="theme-color" content="#101214">
 <meta name="mobile-web-app-capable" content="yes">
@@ -5610,6 +5610,14 @@ function setupUI(canvas, qk) {
   const sup = e => { if (e.pointerId !== sid) return; sid = -1; INP.touch.active = 0; INP.touch.sx = 0; knob.classList.remove('on'); setK(0); };
   sz.addEventListener('pointerup', sup); sz.addEventListener('pointercancel', sup);
   document.addEventListener('contextmenu', e => { if (REN.touch) e.preventDefault(); });
+  // 平板（尤其 iPad Safari 會忽略 viewport 的禁止縮放）：雙指捏合、連點兩下會把整個畫面放大而卡住 → 全部擋掉
+  for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(ev, e => e.preventDefault(), { passive: false });
+  document.addEventListener('touchmove', e => { if (e.touches.length > 1 || (e.scale && e.scale !== 1)) e.preventDefault(); }, { passive: false });
+  let lastTap = 0;
+  document.addEventListener('touchend', e => { const n = Date.now(), t = e.target; if (n - lastTap < 400 && !(t && t.closest && t.closest('input,textarea,select'))) e.preventDefault(); lastTap = n; }, { passive: false });
+  document.addEventListener('dblclick', e => e.preventDefault());
+  // 萬一已經被放大（例如輸入欄位聚焦），縮放比例不是 1 時自動復原
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', () => { if (window.visualViewport.scale > 1.01) { const m = document.querySelector('meta[name=viewport]'); if (m) { m.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover'); window.scrollTo(0, 0); } } });
   document.addEventListener('visibilitychange', () => { if (document.hidden && GAME.state === 'racing' && !GAME.paused && GAME.mode !== 'cruise') togglePause(); else if (!document.hidden && REN.touch && (GAME.state === 'racing' || GAME.state === 'count')) keepAwake(true); }); // 切回來時重新要求螢幕不休眠（切走時系統會自動放開）
   // 全螢幕：Android／iPad 用全螢幕 API（並嘗試鎖橫向）；iPhone 的 Safari 沒有這個功能，改顯示「加入主畫面」說明
   { const de = document.documentElement, rf = de.requestFullscreen || de.webkitRequestFullscreen, bf = $('bFull'), ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
