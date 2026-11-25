@@ -3,10 +3,10 @@
 const fs = require('fs'), path = require('path'), crypto = require('crypto');
 const root = __dirname, dir = path.join(root, 'src/js');
 let js = '';
-for (const f of fs.readdirSync(dir).filter(f => f.endsWith('.js')).sort()) js += '\n// ==== ' + f + ' ====\n' + fs.readFileSync(path.join(dir, f), 'utf8');
+for (const f of fs.readdirSync(dir).filter(f => f.endsWith('.js')).sort()) js += '\n// ==== ' + f + ' ====\n' + fs.readFileSync(path.join(dir, f), 'utf8').replace(/\r\n?/g, '\n');
 js = '(function(){\n' + js + '\n})();';
 if (/<\/script/i.test(js)) throw new Error('JS 內不可出現 </script');
-let out = fs.readFileSync(path.join(root, 'src/index.html'), 'utf8').replace('/*__JS__*/', () => js);
+let out = fs.readFileSync(path.join(root, 'src/index.html'), 'utf8').replace(/\r\n?/g, '\n').replace('/*__JS__*/', () => js);
 
 // ── CSP：script 只放行這一段內嵌腳本的雜湊
 const m = out.match(/<script>([\s\S]*?)<\/script>/); if (!m) throw new Error('找不到內嵌 <script>');

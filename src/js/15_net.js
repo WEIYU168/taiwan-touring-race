@@ -90,7 +90,7 @@ function netApply(c, m) {
   const s = nfin(m.s, 0, TR.len || 30000), d = nfin(m.d, -40, 40), v = nfin(m.v, -80, 120);
   c.ns = s; c.nd = d; c.nv = v; c.nrel = nfin(m.r, -7, 7); c.nt = performance.now(); c.steer = nfin(m.st, -1, 1); c.brakeLight = m.b ? 1 : 0;
   c.nro = nfin(m.ro, -60, 60); c.nay = nfin(m.ay, -30, 60);
-  c.dmg = Math.max(0, Math.min(10, m.k | 0)); if (Array.isArray(m.h) && m.h.length === 40) c.dents = Float32Array.from(m.h, x => nfin(x, -6, 6)); if (m.bk && !c.broken) { c.broken = true; c.brokenT = 0; }
+  c.dmg = Math.max(0, Math.min(DMG_MAX, m.k | 0)); if (Array.isArray(m.h) && m.h.length === 40) c.dents = Float32Array.from(m.h, x => nfin(x, -6, 6)); if (m.bk && !c.broken) { c.broken = true; c.brokenT = 0; }
   if (c.fresh) { c.s = s; c.d = d; c.v = v; c.fresh = false; }
 }
 function netResults() {

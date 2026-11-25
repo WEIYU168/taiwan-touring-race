@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-lICAABj/Re487nZQ4cewqDH1uwKksxQFxw89loiATqg='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' ws: wss:; media-src 'self' blob: data:; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-SHQ8cXgn5wRspMYNyPlAcscKBsaUUHthndKji7ZxjE4='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' ws: wss:; media-src 'self' blob: data:; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <meta name="theme-color" content="#101214">
 <meta name="mobile-web-app-capable" content="yes">
@@ -201,7 +201,7 @@ body.hud-on #h-top{display:flex}
 <div class="hud" id="h-sign"><span class="shield">139</span><div><div id="secName"></div><div id="secSub"></div></div><div class="k"><span id="kpost">0.0K</span><span id="alt"></span></div></div>
 <div class="hud" id="h-mini"><canvas id="mini" width="120" height="250"></canvas></div>
 <div class="hud" id="h-top"><button id="bCam" aria-label="切換視角">視角</button><button id="bReset" aria-label="回到路面">復位</button><button id="bPause" aria-label="暫停">暫停</button></div>
-<div class="hud" id="h-dash"><div id="dmg"><span>車況</span><b id="dmgN">0／10</b><div id="dmgBar"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div><div id="rpm"></div><span id="gear">1</span><span id="spd">0</span><span class="u">KM/H</span></div>
+<div class="hud" id="h-dash"><div id="dmg"><span>車況</span><b id="dmgN">0／15</b><div id="dmgBar"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div><div id="rpm"></div><span id="gear">1</span><span id="spd">0</span><span class="u">KM/H</span></div>
 <div class="hud" id="h-prog"><div id="prog"></div></div>
 <div id="lights"><i></i><i></i><i></i></div>
 <div id="wrong">逆向</div>
@@ -4136,9 +4136,9 @@ function carMatrix(c, out) {
   return M4.fromBasis(out, rx, ry, rz, vx, vy, vz, fx, fy, fz, c.x, c.y + (c.heave || 0), c.z);
 }
 // 毀損參數
-const DMG_MAX = 10;
+const DMG_MAX = 15;
 const _noDent = new Float32Array(40);
-function wreckOf(c) { const k = c.dmg || 0; return k >= 10 ? 1 : k >= 9 ? 0.85 : k >= 6 ? (k - 5) * 0.08 : 0; }
+function wreckOf(c) { const k = c.dmg || 0; return k >= DMG_MAX ? 1 : k >= DMG_MAX - 1 ? 0.85 : k >= DMG_MAX - 4 ? (k - (DMG_MAX - 5)) * 0.08 : 0; }
 function setDamageUniforms(c, P, deform) {
   gl.uniform4fv(P.u('uDent[0]'), c.dents || _noDent);
   gl.uniform4f(P.u('uDmg'), wreckOf(c), (c.dmg || 0) / DMG_MAX, deform ? 1 : 0, c.broken ? 1 : 0);
@@ -4308,7 +4308,7 @@ function stepPlayer(c, dt) {
   const SK = STEER[GAME.steerSens === undefined ? 1 : GAME.steerSens], ph = CAR_MODELS[c.model || 0].phys;
   // 隨車速遞減的轉向角：高速時的最低轉角縮小，小幅修正不再造成大幅甩動
   const dmax = Math.min(0.55, Math.atan(L * 12.5 / (u * u + 1)) + 0.075 * (1 - 0.4 * smooth(12, 45, sp))) * SK.dmax;
-  const tgt = (c.broken ? 0 : INP.steer) * dmax + (c.dmg >= 9 && !c.broken ? 0.012 : 0), rate = ((INP.digital ? 1.5 : 4) * dmax + 0.22 * (1 - 0.5 * smooth(10, 40, sp))) * SK.rate;
+  const tgt = (c.broken ? 0 : INP.steer) * dmax + (c.dmg >= DMG_MAX - 1 && !c.broken ? 0.012 : 0), rate = ((INP.digital ? 1.5 : 4) * dmax + 0.22 * (1 - 0.5 * smooth(10, 40, sp))) * SK.rate;
   const back = Math.sign(tgt) !== Math.sign(c.steer) || Math.abs(tgt) < Math.abs(c.steer) ? 1.6 : 1;
   c.steer += clamp(tgt - c.steer, -rate * dt * back, rate * dt * back);
   const dl = c.steer;
@@ -4322,7 +4322,7 @@ function stepPlayer(c, dt) {
   c.rpm = lerp(c.rpm, rpm + thr * 250 * (sp < 2 ? 8 : 0), 0.3);
   let Fd = (c.shiftT > 0 ? 0 : thr) * engineTorque(rpm) * ratio * 0.9 / RW;
   Fd *= ph.pow * (ph.ev ? 1 + 0.35 * (1 - smooth(0, 28, sp)) : 1);
-  if (c.dmg >= 9) Fd *= u > 19.5 ? 0.12 : 0.45;  // 第 9 次撞擊後：動力大幅下降
+  if (c.dmg >= DMG_MAX - 1) Fd *= u > 19.5 ? 0.12 : 0.45;  // 倒數第 2 次撞擊後：動力大幅下降
   let Fb = 0;
   // 煞車：要求的煞車力（約 2 g）大於輪胎極限，實際減速由下面的抓地上限決定，所以踩到底就是「剛好卡在抓地極限」，不會軟綿綿
   const braking = !reverse && brk > 0.02 && u > 0.3;
@@ -4620,7 +4620,7 @@ function updateHUD(dt) {
   setTxt('secName', S.name); setTxt('secSub', S.sub); setTxt('kpost', realK(Math.min(p.s, S_FINISH)).toFixed(1) + 'K'); setTxt('alt', '海拔 ' + Math.round(realAlt(p.s)) + ' m');
   setTxt('time', fmtTime(GAME.time));
   { const rem = Math.max(0, S_FINISH - p.s); setTxt('remain', rem >= 1000 ? (rem / 1000).toFixed(2) + ' km' : Math.round(rem) + ' m'); }
-  { const k = p.dmg || 0; if (HUDC.dmg !== k + (p.broken ? 100 : 0)) { HUDC.dmg = k + (p.broken ? 100 : 0); const ch = $('dmgBar').children; for (let i = 0; i < 10; i++) ch[i].className = i < k ? (i >= 8 ? 'r' : i >= 5 ? 'o' : 'y') : ''; $('dmgN').textContent = p.broken ? '拋錨' : k >= 9 ? '動力下降' : k + '／10'; $('dmg').classList.toggle('bad', k >= 9); } }
+  { const k = p.dmg || 0; if (HUDC.dmg !== k + (p.broken ? 100 : 0)) { HUDC.dmg = k + (p.broken ? 100 : 0); const ch = $('dmgBar').children; for (let i = 0; i < DMG_MAX; i++) ch[i].className = i < k ? (i >= DMG_MAX - 2 ? 'r' : i >= DMG_MAX - 5 ? 'o' : 'y') : ''; $('dmgN').textContent = p.broken ? '拋錨' : k >= DMG_MAX - 1 ? '動力下降' : k + '／' + DMG_MAX; $('dmg').classList.toggle('bad', k >= DMG_MAX - 1); } }
   if (GAME.mode === 'race') { let pos = 1; for (const c of GAME.cars) if (c !== p && (c.finished ? (!p.finished || c.ftime < p.ftime) : (!p.finished && c.s > p.s))) pos++; setTxt('pos', String(pos)); setTxt('posN', '/ ' + GAME.cars.length); GAME.pos = pos; }
   else { setTxt('pos', GAME.mode === 'cruise' ? '巡' : '計'); setTxt('posN', GAME.mode === 'cruise' ? '環景巡航' : '單車計時'); }
   if (GAME.online && GAME.mode === 'race') updateRank(dt);
@@ -4991,7 +4991,7 @@ function netApply(c, m) {
   const s = nfin(m.s, 0, TR.len || 30000), d = nfin(m.d, -40, 40), v = nfin(m.v, -80, 120);
   c.ns = s; c.nd = d; c.nv = v; c.nrel = nfin(m.r, -7, 7); c.nt = performance.now(); c.steer = nfin(m.st, -1, 1); c.brakeLight = m.b ? 1 : 0;
   c.nro = nfin(m.ro, -60, 60); c.nay = nfin(m.ay, -30, 60);
-  c.dmg = Math.max(0, Math.min(10, m.k | 0)); if (Array.isArray(m.h) && m.h.length === 40) c.dents = Float32Array.from(m.h, x => nfin(x, -6, 6)); if (m.bk && !c.broken) { c.broken = true; c.brokenT = 0; }
+  c.dmg = Math.max(0, Math.min(DMG_MAX, m.k | 0)); if (Array.isArray(m.h) && m.h.length === 40) c.dents = Float32Array.from(m.h, x => nfin(x, -6, 6)); if (m.bk && !c.broken) { c.broken = true; c.brokenT = 0; }
   if (c.fresh) { c.s = s; c.d = d; c.v = v; c.fresh = false; }
 }
 function netResults() {
@@ -5089,8 +5089,8 @@ function fxEmitCar(c, dt) {
   }
   const k = c.dmg || 0; let rate = 0, dark = 0, sz = 1, life = 2.4;
   if (c.broken) { rate = 30; dark = 0.8; sz = 1.25; life = 4; }
-  else if (k >= 9) { rate = 16; dark = 0.55; sz = 1.1; life = 3; }
-  else if (k >= 7) { rate = 4; dark = 0.05; sz = 0.8; life = 2; }
+  else if (k >= DMG_MAX - 1) { rate = 16; dark = 0.55; sz = 1.1; life = 3; }
+  else if (k >= DMG_MAX - 3) { rate = 4; dark = 0.05; sz = 0.8; life = 2; }
   if (!rate) return;
   c.smAcc = (c.smAcc || 0) + rate * dt;
   if (c.smAcc < 1) return;
@@ -5135,7 +5135,7 @@ function fxClear() { FX.n = 0; }
 // ── 撞擊登錄：dirX/dirZ 為世界座標中「接觸點相對車身」的方向
 function registerHit(c, dirX, dirZ, speed) {
   if (!c || c.remote || c.broken || c.finished || (c.hitCD || 0) > 0 || GAME.state !== 'racing') return false;
-  if (c.ai && (c.dmg || 0) >= 8) return false;
+  if (c.ai && (c.dmg || 0) >= DMG_MAX - 2) return false;
   c.hitCD = 0.75; c.dmg = (c.dmg || 0) + 1;
   if (!c.dents) c.dents = new Float32Array(40);
   // 換到車身局部座標（+X 左、+Z 前）
@@ -5150,9 +5150,9 @@ function registerHit(c, dirX, dirZ, speed) {
   for (let i = 0; i < 7; i++) fxSpawn(_fxo[0] + (Math.random() - 0.5) * 0.4, _fxo[1] + Math.random() * 0.3, _fxo[2] + (Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 2.2 + c.vx * 0.3, 0.6 + Math.random() * 1.2, (Math.random() - 0.5) * 2.2 + c.vz * 0.3, 0.9 + Math.random() * 0.6, 0.25, 1.3, -1);
   if (c === GAME.player) {
     if (c.dmg >= DMG_MAX) breakDown(c);
-    else if (c.dmg === 9) toast('第 9 次撞擊：車輛嚴重受損，動力下降！');
-    else if (c.dmg >= 7) toast('撞擊 ' + c.dmg + '／10　引擎開始冒煙');
-    else toast('撞擊 ' + c.dmg + '／10');
+    else if (c.dmg === DMG_MAX - 1) toast('第 ' + c.dmg + ' 次撞擊：車輛嚴重受損，動力下降！');
+    else if (c.dmg >= DMG_MAX - 3) toast('撞擊 ' + c.dmg + '／' + DMG_MAX + '　引擎開始冒煙');
+    else toast('撞擊 ' + c.dmg + '／' + DMG_MAX);
   }
   return true;
 }
@@ -5170,7 +5170,7 @@ function stepBreakdown(p, dt) {
   if (t > 7.5 && !p.brokeShown && GAME.state === 'racing') {
     p.brokeShown = true; GAME.state = 'finish';
     $('resPos').textContent = '拋錨退賽'; $('resTime').textContent = fmtTime(GAME.time);
-    $('resBest').textContent = '撞擊 10 次，車輛無法行駛';
+    $('resBest').textContent = '撞擊 15 次，車輛無法行駛';
     $('resAvg').textContent = '已完成 ' + Math.round(sat((p.s - S_START) / (S_FINISH - S_START)) * 100) + '% 路程';
     $('resList').textContent = '';
     if (GAME.online) { NET.fins[NET.id] = -1; netSend({ t: 'fin', time: -1 }); netResults(); }

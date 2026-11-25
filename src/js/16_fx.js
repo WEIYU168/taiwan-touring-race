@@ -55,8 +55,8 @@ function fxEmitCar(c, dt) {
   }
   const k = c.dmg || 0; let rate = 0, dark = 0, sz = 1, life = 2.4;
   if (c.broken) { rate = 30; dark = 0.8; sz = 1.25; life = 4; }
-  else if (k >= 9) { rate = 16; dark = 0.55; sz = 1.1; life = 3; }
-  else if (k >= 7) { rate = 4; dark = 0.05; sz = 0.8; life = 2; }
+  else if (k >= DMG_MAX - 1) { rate = 16; dark = 0.55; sz = 1.1; life = 3; }
+  else if (k >= DMG_MAX - 3) { rate = 4; dark = 0.05; sz = 0.8; life = 2; }
   if (!rate) return;
   c.smAcc = (c.smAcc || 0) + rate * dt;
   if (c.smAcc < 1) return;
@@ -101,7 +101,7 @@ function fxClear() { FX.n = 0; }
 // ── 撞擊登錄：dirX/dirZ 為世界座標中「接觸點相對車身」的方向
 function registerHit(c, dirX, dirZ, speed) {
   if (!c || c.remote || c.broken || c.finished || (c.hitCD || 0) > 0 || GAME.state !== 'racing') return false;
-  if (c.ai && (c.dmg || 0) >= 8) return false;
+  if (c.ai && (c.dmg || 0) >= DMG_MAX - 2) return false;
   c.hitCD = 0.75; c.dmg = (c.dmg || 0) + 1;
   if (!c.dents) c.dents = new Float32Array(40);
   // 換到車身局部座標（+X 左、+Z 前）
@@ -116,9 +116,9 @@ function registerHit(c, dirX, dirZ, speed) {
   for (let i = 0; i < 7; i++) fxSpawn(_fxo[0] + (Math.random() - 0.5) * 0.4, _fxo[1] + Math.random() * 0.3, _fxo[2] + (Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 2.2 + c.vx * 0.3, 0.6 + Math.random() * 1.2, (Math.random() - 0.5) * 2.2 + c.vz * 0.3, 0.9 + Math.random() * 0.6, 0.25, 1.3, -1);
   if (c === GAME.player) {
     if (c.dmg >= DMG_MAX) breakDown(c);
-    else if (c.dmg === 9) toast('第 9 次撞擊：車輛嚴重受損，動力下降！');
-    else if (c.dmg >= 7) toast('撞擊 ' + c.dmg + '／10　引擎開始冒煙');
-    else toast('撞擊 ' + c.dmg + '／10');
+    else if (c.dmg === DMG_MAX - 1) toast('第 ' + c.dmg + ' 次撞擊：車輛嚴重受損，動力下降！');
+    else if (c.dmg >= DMG_MAX - 3) toast('撞擊 ' + c.dmg + '／' + DMG_MAX + '　引擎開始冒煙');
+    else toast('撞擊 ' + c.dmg + '／' + DMG_MAX);
   }
   return true;
 }
@@ -136,7 +136,7 @@ function stepBreakdown(p, dt) {
   if (t > 7.5 && !p.brokeShown && GAME.state === 'racing') {
     p.brokeShown = true; GAME.state = 'finish';
     $('resPos').textContent = '拋錨退賽'; $('resTime').textContent = fmtTime(GAME.time);
-    $('resBest').textContent = '撞擊 10 次，車輛無法行駛';
+    $('resBest').textContent = '撞擊 15 次，車輛無法行駛';
     $('resAvg').textContent = '已完成 ' + Math.round(sat((p.s - S_START) / (S_FINISH - S_START)) * 100) + '% 路程';
     $('resList').textContent = '';
     if (GAME.online) { NET.fins[NET.id] = -1; netSend({ t: 'fin', time: -1 }); netResults(); }

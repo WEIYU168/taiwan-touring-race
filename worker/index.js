@@ -222,7 +222,7 @@ export class Room {
         this.ready.add(me.id); if (this.players.every(p => this.ready.has(p.id))) this.go();
       } else if (m.t === 's') {
         // 所有數值轉成有限數字並夾在合理範圍：惡意玩家塞 NaN／null／1e308 不會傳給別人
-        const o = { t: 's', id: me.id, s: num(m.s, 0, 30000), d: num(m.d, -40, 40), v: num(m.v, -80, 120), r: num(m.r, -7, 7), st: num(m.st, -1, 1), b: m.b ? 1 : 0, k: int(m.k, 0, 10), bk: m.bk ? 1 : 0, ro: num(m.ro, -60, 60), ay: num(m.ay, -30, 60) };
+        const o = { t: 's', id: me.id, s: num(m.s, 0, 30000), d: num(m.d, -40, 40), v: num(m.v, -80, 120), r: num(m.r, -7, 7), st: num(m.st, -1, 1), b: m.b ? 1 : 0, k: int(m.k, 0, 15), bk: m.bk ? 1 : 0, ro: num(m.ro, -60, 60), ay: num(m.ay, -30, 60) };
         if (Array.isArray(m.h) && m.h.length === 40) o.h = m.h.map(x => num(x, -6, 6));
         this.cast(o, me);
       } else if (m.t === 'b' && me.id === this.host && this.phase === 'racing' && Array.isArray(m.b)) {

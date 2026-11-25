@@ -488,9 +488,9 @@ function carMatrix(c, out) {
   return M4.fromBasis(out, rx, ry, rz, vx, vy, vz, fx, fy, fz, c.x, c.y + (c.heave || 0), c.z);
 }
 // 毀損參數
-const DMG_MAX = 10;
+const DMG_MAX = 15;
 const _noDent = new Float32Array(40);
-function wreckOf(c) { const k = c.dmg || 0; return k >= 10 ? 1 : k >= 9 ? 0.85 : k >= 6 ? (k - 5) * 0.08 : 0; }
+function wreckOf(c) { const k = c.dmg || 0; return k >= DMG_MAX ? 1 : k >= DMG_MAX - 1 ? 0.85 : k >= DMG_MAX - 4 ? (k - (DMG_MAX - 5)) * 0.08 : 0; }
 function setDamageUniforms(c, P, deform) {
   gl.uniform4fv(P.u('uDent[0]'), c.dents || _noDent);
   gl.uniform4f(P.u('uDmg'), wreckOf(c), (c.dmg || 0) / DMG_MAX, deform ? 1 : 0, c.broken ? 1 : 0);

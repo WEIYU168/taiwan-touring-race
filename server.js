@@ -107,7 +107,7 @@ server.on('upgrade', (req, sock) => {
       room.phase = 'loading'; room.ready = new Set(); cast(room, { t: 'load', route, tod, bots: Math.max(0, 8 - room.players.length) });
       clearTimeout(room.timer); room.timer = setTimeout(() => go(room), 25000);
     } else if (m.t === 'ready' && room.phase === 'loading') { room.ready.add(me.id); if (room.players.every(p => room.ready.has(p.id))) go(room); }
-    else if (m.t === 's') { const o = { t: 's', id: me.id, s: num(m.s, 0, 30000), d: num(m.d, -40, 40), v: num(m.v, -80, 120), r: num(m.r, -7, 7), st: num(m.st, -1, 1), b: m.b ? 1 : 0, k: int(m.k, 0, 10), bk: m.bk ? 1 : 0, ro: num(m.ro, -60, 60), ay: num(m.ay, -30, 60) }; if (Array.isArray(m.h) && m.h.length === 40) o.h = m.h.map(x => num(x, -6, 6)); cast(room, o, me); }
+    else if (m.t === 's') { const o = { t: 's', id: me.id, s: num(m.s, 0, 30000), d: num(m.d, -40, 40), v: num(m.v, -80, 120), r: num(m.r, -7, 7), st: num(m.st, -1, 1), b: m.b ? 1 : 0, k: int(m.k, 0, 15), bk: m.bk ? 1 : 0, ro: num(m.ro, -60, 60), ay: num(m.ay, -30, 60) }; if (Array.isArray(m.h) && m.h.length === 40) o.h = m.h.map(x => num(x, -6, 6)); cast(room, o, me); }
     else if (m.t === 'b' && me.id === room.host && room.phase === 'racing' && Array.isArray(m.b)) { const b = m.b.slice(0, 7).filter(e => Array.isArray(e) && e.length >= 9).map(e => [int(e[0], -7, -1, -1), num(e[1], 0, 30000), num(e[2], -40, 40), num(e[3], -80, 120), num(e[4], -7, 7), num(e[5], -1, 1), e[6] ? 1 : 0, int(e[7], 0, 10), e[8] ? 1 : 0]); if (b.length) cast(room, { t: 'b', b }, me); }
     else if (m.t === 'fin') cast(room, { t: 'fin', id: me.id, time: Math.round(num(m.time, -1, 36000, -1) * 100) / 100 }, me);
   }, () => {

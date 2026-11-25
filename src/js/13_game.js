@@ -76,7 +76,7 @@ function stepPlayer(c, dt) {
   const SK = STEER[GAME.steerSens === undefined ? 1 : GAME.steerSens], ph = CAR_MODELS[c.model || 0].phys;
   // 隨車速遞減的轉向角：高速時的最低轉角縮小，小幅修正不再造成大幅甩動
   const dmax = Math.min(0.55, Math.atan(L * 12.5 / (u * u + 1)) + 0.075 * (1 - 0.4 * smooth(12, 45, sp))) * SK.dmax;
-  const tgt = (c.broken ? 0 : INP.steer) * dmax + (c.dmg >= 9 && !c.broken ? 0.012 : 0), rate = ((INP.digital ? 1.5 : 4) * dmax + 0.22 * (1 - 0.5 * smooth(10, 40, sp))) * SK.rate;
+  const tgt = (c.broken ? 0 : INP.steer) * dmax + (c.dmg >= DMG_MAX - 1 && !c.broken ? 0.012 : 0), rate = ((INP.digital ? 1.5 : 4) * dmax + 0.22 * (1 - 0.5 * smooth(10, 40, sp))) * SK.rate;
   const back = Math.sign(tgt) !== Math.sign(c.steer) || Math.abs(tgt) < Math.abs(c.steer) ? 1.6 : 1;
   c.steer += clamp(tgt - c.steer, -rate * dt * back, rate * dt * back);
   const dl = c.steer;
@@ -90,7 +90,7 @@ function stepPlayer(c, dt) {
   c.rpm = lerp(c.rpm, rpm + thr * 250 * (sp < 2 ? 8 : 0), 0.3);
   let Fd = (c.shiftT > 0 ? 0 : thr) * engineTorque(rpm) * ratio * 0.9 / RW;
   Fd *= ph.pow * (ph.ev ? 1 + 0.35 * (1 - smooth(0, 28, sp)) : 1);
-  if (c.dmg >= 9) Fd *= u > 19.5 ? 0.12 : 0.45;  // 第 9 次撞擊後：動力大幅下降
+  if (c.dmg >= DMG_MAX - 1) Fd *= u > 19.5 ? 0.12 : 0.45;  // 倒數第 2 次撞擊後：動力大幅下降
   let Fb = 0;
   // 煞車：要求的煞車力（約 2 g）大於輪胎極限，實際減速由下面的抓地上限決定，所以踩到底就是「剛好卡在抓地極限」，不會軟綿綿
   const braking = !reverse && brk > 0.02 && u > 0.3;
@@ -388,7 +388,7 @@ function updateHUD(dt) {
   setTxt('secName', S.name); setTxt('secSub', S.sub); setTxt('kpost', realK(Math.min(p.s, S_FINISH)).toFixed(1) + 'K'); setTxt('alt', '海拔 ' + Math.round(realAlt(p.s)) + ' m');
   setTxt('time', fmtTime(GAME.time));
   { const rem = Math.max(0, S_FINISH - p.s); setTxt('remain', rem >= 1000 ? (rem / 1000).toFixed(2) + ' km' : Math.round(rem) + ' m'); }
-  { const k = p.dmg || 0; if (HUDC.dmg !== k + (p.broken ? 100 : 0)) { HUDC.dmg = k + (p.broken ? 100 : 0); const ch = $('dmgBar').children; for (let i = 0; i < 10; i++) ch[i].className = i < k ? (i >= 8 ? 'r' : i >= 5 ? 'o' : 'y') : ''; $('dmgN').textContent = p.broken ? '拋錨' : k >= 9 ? '動力下降' : k + '／10'; $('dmg').classList.toggle('bad', k >= 9); } }
+  { const k = p.dmg || 0; if (HUDC.dmg !== k + (p.broken ? 100 : 0)) { HUDC.dmg = k + (p.broken ? 100 : 0); const ch = $('dmgBar').children; for (let i = 0; i < DMG_MAX; i++) ch[i].className = i < k ? (i >= DMG_MAX - 2 ? 'r' : i >= DMG_MAX - 5 ? 'o' : 'y') : ''; $('dmgN').textContent = p.broken ? '拋錨' : k >= DMG_MAX - 1 ? '動力下降' : k + '／' + DMG_MAX; $('dmg').classList.toggle('bad', k >= DMG_MAX - 1); } }
   if (GAME.mode === 'race') { let pos = 1; for (const c of GAME.cars) if (c !== p && (c.finished ? (!p.finished || c.ftime < p.ftime) : (!p.finished && c.s > p.s))) pos++; setTxt('pos', String(pos)); setTxt('posN', '/ ' + GAME.cars.length); GAME.pos = pos; }
   else { setTxt('pos', GAME.mode === 'cruise' ? '巡' : '計'); setTxt('posN', GAME.mode === 'cruise' ? '環景巡航' : '單車計時'); }
   if (GAME.online && GAME.mode === 'race') updateRank(dt);
