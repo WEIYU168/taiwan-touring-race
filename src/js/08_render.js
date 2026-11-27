@@ -194,7 +194,7 @@ function setQuality(key) {
   REN.w = 0; // 強制重建 FBO
 }
 function resizeRender(canvas) {
-  const dpr = Math.min(window.devicePixelRatio || 1, REN.touch ? 1.5 : 2);
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const cw = canvas.clientWidth || 1280, ch = canvas.clientHeight || 720;
   let sc = REN.q.scale * REN.scale * dpr;
   let w = Math.max(320, Math.round(cw * sc)), h = Math.max(180, Math.round(ch * sc));

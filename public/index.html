@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-6ifbnTAsm3Ci7/x06mZ+3ZZnd6CfBrLPNzaJbM1OREQ='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' ws: wss:; media-src 'self' blob: data:; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-H7Ds+O4ruSpRW11TSeYRHrKa0LkNGnz5fHxof2nmexw='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' ws: wss:; media-src 'self' blob: data:; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <meta name="theme-color" content="#101214">
 <meta name="mobile-web-app-capable" content="yes">
@@ -2506,7 +2506,7 @@ function setQuality(key) {
   REN.w = 0; // 強制重建 FBO
 }
 function resizeRender(canvas) {
-  const dpr = Math.min(window.devicePixelRatio || 1, REN.touch ? 1.5 : 2);
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const cw = canvas.clientWidth || 1280, ch = canvas.clientHeight || 720;
   let sc = REN.q.scale * REN.scale * dpr;
   let w = Math.max(320, Math.round(cw * sc)), h = Math.max(180, Math.round(ch * sc));
@@ -5503,15 +5503,15 @@ async function boot() {
   buildVegMeshes(); buildCarMeshes(); buildHeartMesh(); initFX();
   SCENE.opaque.push(drawCars, drawProps, drawHazards, drawVegMain); SCENE.shadow.push(drawCarsShadow, drawPropsShadow, drawHazardsShadow, drawVegShadow); SCENE.cockpit.push(drawCockpit); SCENE.blend.push(drawFX);
   const touch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0; REN.touch = touch; if (touch) document.body.classList.add('touch');
-  let qk = touch ? 'low' : 'med', rk = 'kenting'; // 沒選過賽道時預設墾丁；手機、平板預設「流暢」，不自動用「省電」
+  let qk = touch ? 'med' : 'high', rk = 'kenting'; // 沒選過賽道時預設墾丁；畫質預設：電腦「精緻」、手機平板「標準」
   try { const s = localStorage.getItem('r139_q'); if (s && QUALITY[s]) qk = s; } catch (e) { } // 賽道每次開啟都從墾丁開始（沒選賽道的預設），不再沿用上次的選擇
   GAME.aid = 1; GAME.autoThr = touch; GAME.carModel = 0; GAME.steerSens = 1;
   try { const c = +localStorage.getItem('r139_car'); if (c >= 0 && c < CAR_MODELS.length) GAME.carModel = c; const st = localStorage.getItem('r139_steer'); if (st !== null && STEER[+st]) GAME.steerSens = +st; } catch (e) { }
-  setQuality(qk); setTimeOfDay('day'); resizeRender(canvas);
+  GAME.qPref = qk; setQuality(qk); setTimeOfDay('day'); resizeRender(canvas);
   setupUI(canvas, qk);
   await loadRoute(rk);
-  let last = performance.now(), acc = 0, slow = 0, fast = 0, n = 0;
-  const TIERS = ['high', 'med', 'low']; // 自動降級最低到「流暢」；「省電」只有玩家自己選才會用
+  let last = performance.now(), acc = 0, slow = 0, vslow = 0, fast = 0, n = 0, lastState = '';
+  const TIERS = ['high', 'med', 'low']; // 自動降級：一般最低到「標準」，嚴重卡頓才到「流暢」；「省電」只有玩家自己選才會用
   function frame(t) {
     requestAnimationFrame(frame);
     if (!WORLD_READY) { last = t; return; }
@@ -5523,10 +5523,13 @@ async function boot() {
     if (window.__cam) { const c = window.__cam; setCameraLook(c[0], c[1], c[2], c[3], c[4], c[5]); CAM.fov = 55 * DEG; REN.focus = [c[3], c[4], c[5]]; }
     updateHUD(dt);
     REN.stats.tris = 0; renderFrame(dt); updateNameTags();
-    // 動態解析度 → 仍卡頓則自動降一級畫質
-    if (!window.__manual && raw < 0.5) { n++; if (raw > 0.027) slow++; else if (raw < 0.019) fast++; acc += raw;
-      if (acc > 2) { if (slow > n * 0.45) { if (REN.scale > 0.72) REN.scale *= 0.86; else { const i = TIERS.indexOf(REN.qkey); if (i >= 0 && i < TIERS.length - 1) { setQuality(TIERS[i + 1]); REN.scale = 1; setSeg('sQ', TIERS[i + 1]); toast('已自動調整畫質為「' + QUALITY[TIERS[i + 1]].name + '」以維持流暢'); } } }
-        else if (fast > n * 0.9 && REN.scale < 1) REN.scale = Math.min(1, REN.scale * 1.07); acc = 0; slow = 0; fast = 0; n = 0; } }
+    // 畫質優先：開賽時回到玩家選的畫質與完整解析度；真的卡頓才調降
+    if (GAME.state !== lastState) { if (GAME.state === 'count') { if (REN.qkey !== GAME.qPref) { setQuality(GAME.qPref); setSeg('sQ', GAME.qPref); } REN.scale = 1; acc = 0; slow = 0; vslow = 0; fast = 0; n = 0; } lastState = GAME.state; }
+    // 動態解析度 → 仍卡頓則自動降一級畫質。對戰中只有嚴重卡頓（低於約 22 張/秒）才動作
+    if (!window.__manual && raw < 0.5) { n++; if (raw > 0.034) slow++; else if (raw < 0.025) fast++; if (raw > 0.045) vslow++; acc += raw;
+      if (acc > 3) { const bad = vslow > n * 0.6, racing = GAME.online && (GAME.state === 'count' || GAME.state === 'racing');
+        if (bad || (!racing && slow > n * 0.6)) { if (REN.scale > (bad ? 0.75 : 0.9)) REN.scale *= 0.9; else { const i = TIERS.indexOf(REN.qkey), floor = TIERS.indexOf(bad ? 'low' : 'med'); if (i >= 0 && i < floor) { setQuality(TIERS[i + 1]); REN.scale = 1; setSeg('sQ', TIERS[i + 1]); toast('已自動調整畫質為「' + QUALITY[TIERS[i + 1]].name + '」以維持流暢'); } } }
+        else if (fast > n * 0.8 && REN.scale < 1) REN.scale = Math.min(1, REN.scale * 1.08); acc = 0; slow = 0; vslow = 0; fast = 0; n = 0; } }
     window.READY = true;
   }
   requestAnimationFrame(frame);
@@ -5569,7 +5572,7 @@ function setupUI(canvas, qk) {
   seg('sAid', v => { GAME.aid = +v; }, 1);
   seg('sAuto', v => { GAME.autoThr = v === '1'; document.body.classList.toggle('autothr', GAME.autoThr); }, GAME.autoThr ? 1 : 0);
   document.body.classList.toggle('autothr', GAME.autoThr);
-  seg('sQ', v => { setQuality(v); REN.scale = 1; try { localStorage.setItem('r139_q', v); } catch (e) { } }, qk);
+  seg('sQ', v => { GAME.qPref = v; setQuality(v); REN.scale = 1; try { localStorage.setItem('r139_q', v); } catch (e) { } }, qk);
   const sl = $('sLiv'); LIVERIES.forEach((L, i) => { const b = document.createElement('button'); const c = v => 'rgb(' + v.map(x => Math.round(Math.pow(x, 1 / 2.2) * 255)).join(',') + ')'; b.style.background = c(L.body); b.innerHTML = '<i style="background:' + c(L.accent) + '"></i>'; b.dataset.v = i; b.title = L.name; b.setAttribute('aria-label', L.name); b.setAttribute('aria-pressed', i === 0 ? 'true' : 'false'); sl.appendChild(b); });
   // 車款按鈕與介紹卡
   const sc = $('sCar');
