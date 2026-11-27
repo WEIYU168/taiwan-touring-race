@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-SHQ8cXgn5wRspMYNyPlAcscKBsaUUHthndKji7ZxjE4='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' ws: wss:; media-src 'self' blob: data:; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-6ifbnTAsm3Ci7/x06mZ+3ZZnd6CfBrLPNzaJbM1OREQ='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' ws: wss:; media-src 'self' blob: data:; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <meta name="theme-color" content="#101214">
 <meta name="mobile-web-app-capable" content="yes">
@@ -5503,8 +5503,7 @@ async function boot() {
   buildVegMeshes(); buildCarMeshes(); buildHeartMesh(); initFX();
   SCENE.opaque.push(drawCars, drawProps, drawHazards, drawVegMain); SCENE.shadow.push(drawCarsShadow, drawPropsShadow, drawHazardsShadow, drawVegShadow); SCENE.cockpit.push(drawCockpit); SCENE.blend.push(drawFX);
   const touch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0; REN.touch = touch; if (touch) document.body.classList.add('touch');
-  const small = Math.min(window.innerWidth, window.innerHeight) < 520;
-  let qk = touch ? (small ? 'min' : 'low') : 'med', rk = 'kenting'; // 沒選過賽道時預設墾丁
+  let qk = touch ? 'low' : 'med', rk = 'kenting'; // 沒選過賽道時預設墾丁；手機、平板預設「流暢」，不自動用「省電」
   try { const s = localStorage.getItem('r139_q'); if (s && QUALITY[s]) qk = s; } catch (e) { } // 賽道每次開啟都從墾丁開始（沒選賽道的預設），不再沿用上次的選擇
   GAME.aid = 1; GAME.autoThr = touch; GAME.carModel = 0; GAME.steerSens = 1;
   try { const c = +localStorage.getItem('r139_car'); if (c >= 0 && c < CAR_MODELS.length) GAME.carModel = c; const st = localStorage.getItem('r139_steer'); if (st !== null && STEER[+st]) GAME.steerSens = +st; } catch (e) { }
@@ -5512,7 +5511,7 @@ async function boot() {
   setupUI(canvas, qk);
   await loadRoute(rk);
   let last = performance.now(), acc = 0, slow = 0, fast = 0, n = 0;
-  const TIERS = ['high', 'med', 'low', 'min'];
+  const TIERS = ['high', 'med', 'low']; // 自動降級最低到「流暢」；「省電」只有玩家自己選才會用
   function frame(t) {
     requestAnimationFrame(frame);
     if (!WORLD_READY) { last = t; return; }
@@ -5526,7 +5525,7 @@ async function boot() {
     REN.stats.tris = 0; renderFrame(dt); updateNameTags();
     // 動態解析度 → 仍卡頓則自動降一級畫質
     if (!window.__manual && raw < 0.5) { n++; if (raw > 0.027) slow++; else if (raw < 0.019) fast++; acc += raw;
-      if (acc > 2) { if (slow > n * 0.45) { if (REN.scale > 0.62) REN.scale *= 0.86; else { const i = TIERS.indexOf(REN.qkey); if (i < TIERS.length - 1) { setQuality(TIERS[i + 1]); REN.scale = 1; setSeg('sQ', TIERS[i + 1]); toast('已自動調整畫質為「' + QUALITY[TIERS[i + 1]].name + '」以維持流暢'); } } }
+      if (acc > 2) { if (slow > n * 0.45) { if (REN.scale > 0.72) REN.scale *= 0.86; else { const i = TIERS.indexOf(REN.qkey); if (i >= 0 && i < TIERS.length - 1) { setQuality(TIERS[i + 1]); REN.scale = 1; setSeg('sQ', TIERS[i + 1]); toast('已自動調整畫質為「' + QUALITY[TIERS[i + 1]].name + '」以維持流暢'); } } }
         else if (fast > n * 0.9 && REN.scale < 1) REN.scale = Math.min(1, REN.scale * 1.07); acc = 0; slow = 0; fast = 0; n = 0; } }
     window.READY = true;
   }
